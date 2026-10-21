@@ -1,0 +1,74 @@
+<!-- @dsCard group="Filters" height=120 -->
+<!doctype html>
+<html lang="id">
+	<head>
+		<meta charset="utf-8" />
+		<title>PeriodFilter — preview</title>
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap"
+		/>
+		<style>
+			body {
+				margin: 0;
+				background: var(--tint-2, #eef3ff);
+			}
+			.pad {
+				padding: 16px;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 12px;
+				align-items: flex-start;
+			}
+		</style>
+	</head>
+	<body class="bf-root">
+		<div class="pad" style="background: var(--surface, #fff)">
+			<div class="bf-seg" role="group" aria-label="Rentang waktu">
+				<button type="button" aria-pressed="false">Harian</button
+				><button type="button" aria-pressed="false">Mingguan</button
+				><button type="button" aria-pressed="true">Bulanan</button
+				><button type="button" aria-pressed="false">Tahunan</button
+				><button type="button" aria-pressed="false">Custom</button>
+			</div>
+			<div class="bf-period">
+				<button class="bf-icon-btn" type="button" aria-label="Periode sebelumnya">
+					<svg
+						width="14"
+						height="14"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2.4"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="M15 6l-6 6 6 6"></path>
+					</svg>
+				</button>
+				<span class="bf-period__label">1 – 31 Okt 2026</span>
+				<button class="bf-icon-btn" type="button" aria-label="Periode berikutnya" disabled>
+					<svg
+						width="14"
+						height="14"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2.4"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="M9 6l6 6-6 6"></path>
+					</svg>
+				</button>
+			</div>
+			<div class="bf-seg bf-seg--dark" role="group" aria-label="Jenis transaksi">
+				<button type="button" aria-pressed="true">Semua</button
+				><button type="button" aria-pressed="false">Masuk</button
+				><button type="button" aria-pressed="false">Keluar</button>
+			</div>
+		</div>
+	</body>
+</html>

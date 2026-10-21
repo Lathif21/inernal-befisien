@@ -1,0 +1,58 @@
+<!-- @dsCard group="AI" height=280 -->
+<!doctype html>
+<html lang="id">
+	<head>
+		<meta charset="utf-8" />
+		<title>AiSuggestion — preview</title>
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap"
+		/>
+		<style>
+			body {
+				margin: 0;
+				background: var(--tint-2, #eef3ff);
+			}
+			.pad {
+				padding: 16px;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 12px;
+				align-items: flex-start;
+			}
+		</style>
+	</head>
+	<body class="bf-root">
+		<div
+			class="pad"
+			style="
+				flex-direction: column;
+				max-width: 380px;
+				background: var(--surface, #fff);
+				border: 1.5px solid var(--ai-line, #d9c9ff);
+				border-radius: 18px;
+				margin: 16px;
+			"
+		>
+			<article class="bf-ai">
+				<span class="bf-ai__kind">Risiko</span
+				><span class="bf-ai__insight"
+					>PT Surya Daya Mandiri belum membalas 12 hari setelah proposal dikirim.</span
+				><span class="bf-ai__action"
+					>Kirim studi kasus singkat AI Agent pengadaan dan tawarkan demo 30 menit.</span
+				><span style="display: flex; gap: 8px"
+					><button class="bf-btn bf-btn--ai-solid bf-btn--sm" type="button">
+						Tambahkan ke rencana</button
+					><button
+						class="bf-btn bf-btn--ghost bf-btn--sm"
+						type="button"
+						style="color: var(--ink-2, #3e4c75)"
+					>
+						Abaikan
+					</button></span
+				>
+			</article>
+			<span class="bf-ai__note">Saran AI bisa keliru. Periksa dulu sebelum dipakai.</span>
+		</div>
+	</body>
+</html>

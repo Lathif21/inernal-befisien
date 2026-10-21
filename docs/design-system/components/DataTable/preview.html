@@ -1,0 +1,99 @@
+<!-- @dsCard group="Data display" height=260 -->
+<!doctype html>
+<html lang="id">
+	<head>
+		<meta charset="utf-8" />
+		<title>DataTable — preview</title>
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap"
+		/>
+		<style>
+			body {
+				margin: 0;
+				background: var(--tint-2, #eef3ff);
+			}
+			.pad {
+				padding: 16px;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 12px;
+				align-items: flex-start;
+			}
+		</style>
+	</head>
+	<body class="bf-root">
+		<div
+			class="pad"
+			style="
+				flex-direction: column;
+				align-items: stretch;
+				background: var(--surface, #fff);
+				margin: 16px;
+				border-radius: 18px;
+			"
+		>
+			<div style="display: flex; gap: 10px; flex-wrap: wrap">
+				<label class="bf-search" style="flex: 1 1 220px"
+					><svg
+						width="15"
+						height="15"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						aria-hidden="true"
+					>
+						<circle cx="11" cy="11" r="7"></circle>
+						<path d="M20 20l-3.5-3.5"></path></svg
+					><input
+						type="search"
+						aria-label="Cari transaksi"
+						placeholder="Cari keterangan atau kategori"
+				/></label>
+				<div class="bf-seg bf-seg--dark" role="group" aria-label="Jenis">
+					<button type="button" aria-pressed="true">Semua</button
+					><button type="button" aria-pressed="false">Masuk</button
+					><button type="button" aria-pressed="false">Keluar</button>
+				</div>
+			</div>
+			<div class="bf-table-wrap">
+				<table class="bf-table" style="min-width: 560px">
+					<thead>
+						<tr>
+							<th scope="col">Tanggal</th>
+							<th scope="col">Keterangan</th>
+							<th scope="col">Kategori</th>
+							<th scope="col">Status</th>
+							<th scope="col" class="num">Jumlah</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>15 Nov 2026</td>
+							<td><b>Pelunasan (20%)</b></td>
+							<td>Pelunasan</td>
+							<td><span class="bf-chip bf-chip--planned">Direncanakan</span></td>
+							<td class="num bf-amount--in">+ Rp 24.000.000</td>
+						</tr>
+						<tr>
+							<td>10 Okt 2026</td>
+							<td><b>Termin 2 (20%)</b></td>
+							<td>Termin</td>
+							<td><span class="bf-chip">Dibayar</span></td>
+							<td class="num bf-amount--in">+ Rp 24.000.000</td>
+						</tr>
+						<tr>
+							<td>02 Okt 2026</td>
+							<td><b>Vendor konektor ERP</b></td>
+							<td>Vendor / Subkontraktor</td>
+							<td><span class="bf-chip">Dibayar</span></td>
+							<td class="num bf-amount--out">− Rp 20.000.000</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</body>
+</html>

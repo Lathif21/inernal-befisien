@@ -1,0 +1,135 @@
+<!-- @dsCard group="Strategi" height=470 -->
+<!doctype html>
+<html lang="id">
+	<head>
+		<meta charset="utf-8" />
+		<title>PlanCard — preview</title>
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap"
+		/>
+		<style>
+			body {
+				margin: 0;
+				background: var(--tint-2, #eef3ff);
+			}
+			.pad {
+				padding: 16px;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 12px;
+				align-items: flex-start;
+			}
+		</style>
+	</head>
+	<body class="bf-root">
+		<div class="pad" style="max-width: 720px">
+			<article class="bf-plan" style="width: 100%">
+				<div style="display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start">
+					<div style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 4px">
+						<span class="bf-plan__client">PT Surya Daya Mandiri</span>
+						<h3 class="bf-plan__goal">Closing AI Agent pengadaan sebelum 30 Nov</h3>
+						<span style="display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px"
+							><span class="bf-chip bf-chip--accent">Deal · Proposal Terkirim · Rp 38 jt</span
+							><span class="bf-chip">Target 30 Nov</span></span
+						>
+					</div>
+					<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px">
+						<span class="bf-pager__info" style="margin: 0">2 dari 5 langkah selesai</span>
+						<div
+							class="bf-progress"
+							style="width: 150px"
+							role="img"
+							aria-label="2 dari 5 langkah selesai"
+						>
+							<span style="width: 40%"></span>
+						</div>
+					</div>
+				</div>
+				<ol class="bf-steps">
+					<li class="bf-step bf-step--done">
+						<span class="bf-step__icon"
+							><svg
+								width="12"
+								height="12"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="3.2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								aria-hidden="true"
+							>
+								<path d="M5 12l5 5 9-10"></path></svg></span
+						><span class="bf-step__title">Discovery meeting dengan tim procurement</span
+						><span class="bf-step__when">02 Okt 10:00</span><span class="bf-avatar">AG</span>
+					</li>
+					<li class="bf-step bf-step--done">
+						<span class="bf-step__icon"
+							><svg
+								width="12"
+								height="12"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="3.2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								aria-hidden="true"
+							>
+								<path d="M5 12l5 5 9-10"></path></svg></span
+						><span class="bf-step__title">Kirim proposal &amp; estimasi biaya</span
+						><span class="bf-step__when">10 Okt 15:00</span><span class="bf-avatar">AG</span>
+					</li>
+					<li class="bf-step bf-step--late">
+						<span class="bf-step__icon">!</span
+						><span class="bf-step__title">Follow up proposal via WA</span
+						><span class="bf-step__when">20 Okt 10:00</span><span class="bf-avatar">AG</span>
+					</li>
+					<li class="bf-step bf-step--today">
+						<span class="bf-step__icon"></span
+						><span class="bf-step__title">Demo prototype ke kepala procurement</span
+						><span class="bf-step__when">22 Okt 14:00</span><span class="bf-avatar">AG</span>
+					</li>
+				</ol>
+				<nav class="bf-pager bf-pager--sm" aria-label="Halaman langkah">
+					<span class="bf-pager__info">Langkah 1–4 dari 5</span
+					><button type="button" aria-label="Langkah sebelumnya" disabled>
+						<svg
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2.4"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<path d="M15 6l-6 6 6 6"></path>
+						</svg></button
+					><button type="button" aria-current="page">1</button><button type="button">2</button
+					><button type="button" aria-label="Langkah berikutnya">
+						<svg
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2.4"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<path d="M9 6l6 6-6 6"></path>
+						</svg>
+					</button>
+				</nav>
+				<div style="display: flex; gap: 10px; flex-wrap: wrap">
+					<button class="bf-btn bf-btn--secondary bf-btn--sm" type="button">+ Tambah langkah</button
+					><button class="bf-btn bf-btn--ai bf-btn--sm" type="button">Minta saran AI</button>
+				</div>
+			</article>
+		</div>
+	</body>
+</html>

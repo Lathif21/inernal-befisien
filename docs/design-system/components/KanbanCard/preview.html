@@ -1,0 +1,100 @@
+<!-- @dsCard group="Boards" height=330 -->
+<!doctype html>
+<html lang="id">
+	<head>
+		<meta charset="utf-8" />
+		<title>KanbanCard — preview</title>
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap"
+		/>
+		<style>
+			body {
+				margin: 0;
+				background: var(--tint-2, #eef3ff);
+			}
+			.pad {
+				padding: 16px;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 12px;
+				align-items: flex-start;
+			}
+		</style>
+	</head>
+	<body class="bf-root">
+		<div class="pad">
+			<section class="bf-kcol" aria-label="Proposal Terkirim">
+				<div class="bf-kcol__head">
+					<span class="bf-dot" style="background: var(--stage-proposal, #1f5bea)"></span>Proposal
+					Terkirim<span class="bf-kcol__count">3</span><span class="bf-kcol__total">Rp 74 jt</span>
+				</div>
+				<article class="bf-kcard">
+					<div style="display: flex; align-items: center; gap: 8px">
+						<span class="bf-kcard__client">PT Surya Daya Mandiri</span
+						><span class="bf-chip bf-chip--service">AI Agent</span>
+					</div>
+					<h3 class="bf-kcard__title">AI Agent pengadaan barang</h3>
+					<span class="bf-kcard__value">Rp 38 jt</span>
+					<div class="bf-next bf-next--late">
+						<svg
+							width="15"
+							height="15"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<circle cx="12" cy="12" r="9"></circle>
+							<path d="M12 7v6M12 16.5v.5"></path></svg
+						><span
+							><span class="bf-next__title">Follow up proposal via WA</span
+							><span class="bf-next__when">Terlambat 2 hari</span></span
+						>
+					</div>
+					<div class="bf-kcard__foot"><span class="bf-avatar">AG</span>12 hari di tahap ini</div>
+				</article>
+			</section>
+			<section class="bf-kcol" aria-label="Negosiasi">
+				<div class="bf-kcol__head">
+					<span class="bf-dot" style="background: var(--stage-negotiation, #0b1840)"></span
+					>Negosiasi<span class="bf-kcol__count">2</span
+					><span class="bf-kcol__total">Rp 37 jt</span>
+				</div>
+				<article class="bf-kcard bf-kcard--dragging">
+					<div style="display: flex; align-items: center; gap: 8px">
+						<span class="bf-kcard__client">PT Delta Finansia</span
+						><span class="bf-chip bf-chip--service">Otomasi</span>
+					</div>
+					<h3 class="bf-kcard__title">Rekonsiliasi bank otomatis</h3>
+					<span class="bf-kcard__value">Rp 10 jt</span>
+					<div class="bf-next bf-next--upcoming">
+						<svg
+							width="15"
+							height="15"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<rect x="3" y="5" width="18" height="16" rx="2"></rect>
+							<path d="M3 10h18M8 3v4M16 3v4"></path></svg
+						><span
+							><span class="bf-next__title">Tunggu tanda tangan SPK</span
+							><span class="bf-next__when">Jum, 30 Okt 10:00</span></span
+						>
+					</div>
+					<div class="bf-kcard__foot">
+						<span class="bf-avatar bf-avatar--dark">RA</span>2 hari di tahap ini
+					</div>
+				</article>
+			</section>
+		</div>
+	</body>
+</html>

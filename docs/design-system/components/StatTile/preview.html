@@ -1,0 +1,49 @@
+<!-- @dsCard group="Data display" height=150 -->
+<!doctype html>
+<html lang="id">
+	<head>
+		<meta charset="utf-8" />
+		<title>StatTile — preview</title>
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap"
+		/>
+		<style>
+			body {
+				margin: 0;
+				background: var(--tint-2, #eef3ff);
+			}
+			.pad {
+				padding: 16px;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 12px;
+				align-items: flex-start;
+			}
+		</style>
+	</head>
+	<body class="bf-root">
+		<div
+			class="pad"
+			style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px"
+		>
+			<div class="bf-stat">
+				<span class="bf-stat__label">Pemasukan</span><span class="bf-stat__value">Rp 86,5 jt</span
+				><span class="bf-stat__delta bf-stat__delta--good">▲ 35% vs periode sebelumnya</span>
+			</div>
+			<div class="bf-stat">
+				<span class="bf-stat__label">Pengeluaran</span><span class="bf-stat__value">Rp 31,2 jt</span
+				><span class="bf-stat__delta bf-stat__delta--bad">▲ 20% vs periode sebelumnya</span>
+			</div>
+			<div class="bf-stat bf-stat--dark">
+				<span class="bf-stat__label">Laba bersih</span><span class="bf-stat__value">Rp 55,3 jt</span
+				><span class="bf-stat__delta">▲ 45% vs periode sebelumnya</span>
+			</div>
+			<div class="bf-stat">
+				<span class="bf-stat__label">Nilai pipeline aktif</span
+				><span class="bf-stat__value">Rp 412 jt</span
+				><span class="bf-stat__delta bf-stat__delta--neutral">18 deal terbuka</span>
+			</div>
+		</div>
+	</body>
+</html>
