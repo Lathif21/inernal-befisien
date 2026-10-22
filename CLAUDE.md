@@ -4,7 +4,7 @@ Internal CRM + finance app for Befisien Technologies. Read `docs/01-PRD.md` to `
 
 ## Stack
 
-SvelteKit 3 (Svelte 5 runes, TypeScript) · Neon Postgres (project `long-truth-57557441`, branch `production`, aws us-east-2; linked via `neon.ts` / `.neon`) · Drizzle ORM with `node-postgres` (`pg`) on the pooled URL, `attachDatabasePool` on Vercel · Better Auth · Tailwind v4 + bits-ui primitives + svelte-sonner (instead of the shadcn-svelte CLI) · Lucide (`@lucide/svelte`) · Superforms + Zod · svelte-dnd-action · fractional-indexing · LayerChart · Trigger.dev v4 (`@trigger.dev/sdk`) · Resend (from info@befisien.com) · Telegram Bot API · Staging on Vercel (`befisien/befisien-crm`, https://befisien-crm.vercel.app, region `cle1`, adapter-vercel when `VERCEL=1`) · Production planned on a VPS with adapter-node.
+SvelteKit 3 (Svelte 5 runes, TypeScript) · Neon Postgres (project `long-truth-57557441`, branches `production` (staging) and `dev` (local `.env`, demo seed), aws us-east-2; linked via `neon.ts` / `.neon`; switch with `neon checkout <branch>`) · Drizzle ORM with `node-postgres` (`pg`) on the pooled URL, `attachDatabasePool` on Vercel · Better Auth · Tailwind v4 + bits-ui primitives + svelte-sonner (instead of the shadcn-svelte CLI) · Lucide (`@lucide/svelte`) · Superforms + Zod · svelte-dnd-action · fractional-indexing · LayerChart · Trigger.dev v4 (`@trigger.dev/sdk`) · Resend (from info@befisien.com) · Telegram Bot API · Staging on Vercel (`befisien/befisien-crm`, https://befisien-crm.vercel.app, region `cle1`, adapter-vercel when `VERCEL=1`) · Production planned on a VPS with adapter-node.
 
 ## SvelteKit 3 notes (the docs were written for SvelteKit 2)
 
@@ -26,6 +26,8 @@ npm run test           # vitest
 npm run db:generate    # drizzle-kit generate (after schema changes)
 npm run db:migrate     # apply migrations (DATABASE_URL_UNPOOLED)
 npm run user:create -- --email … --name "…" [--password …] [--role admin]
+npm run db:seed [-- --reset]   # demo data; only on Neon `dev` or localhost
+npm run db:studio
 npx trigger.dev@latest dev
 ```
 

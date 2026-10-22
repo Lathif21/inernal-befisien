@@ -66,7 +66,7 @@ Goal: an empty but deployed, branded app where the 2 admins can log in.
 
 Goal: the team runs all client follow-up and money tracking in the app instead of notes.
 
-### [ ] P1-01 CRM schema
+### [x] P1-01 CRM schema
 
 **Depends:** P0-02
 
@@ -74,6 +74,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - Check constraints, partial unique indexes, other indexes
 - `scripts/seed.ts`: categories plus a realistic demo dataset (8 clients, 12 deals across stages, 4 projects, 30 transactions) for the `dev` branch only
 - **Done when:** migration applied on `dev`, seed runs, Drizzle Studio shows the data.
+- _Note: Neon branch `dev` (`br-bold-snow-b52shugd`, no expiry) is the local dev database; `npm run db:seed` refuses any target that is not `dev` or localhost, and `--reset` wipes CRM + finance tables. `ai_suggestion` FKs (`from_suggestion_id`) and `category.is_overhead` are added in Phase 2. Migration `0002_crm_finance` is not yet applied to `production`._
 
 ### [ ] P1-02 Shared helpers & services skeleton
 
