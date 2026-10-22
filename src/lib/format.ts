@@ -1,5 +1,6 @@
 import { TZDate, tz } from '@date-fns/tz';
 import { format } from 'date-fns';
+import { id as localeId } from 'date-fns/locale/id';
 
 /** All "today" / "late" / display logic runs in WIB, never the server's local time. */
 export const TZ = 'Asia/Jakarta';
@@ -15,6 +16,58 @@ export function nowWib(date: Date | number = Date.now()): TZDate {
 /** Calendar day in WIB as `yyyy-MM-dd`, matching Postgres `date` columns. */
 export function dayKeyWib(date: Date | number = Date.now()): string {
 	return format(date, 'yyyy-MM-dd', { in: wib });
+}
+
+const DATE_PATTERNS = {
+	/** 22 Okt 2026 */
+	date: 'd MMM yyyy',
+	/** 22 Okt 10:00 */
+	datetime: 'd MMM HH:mm',
+	/** Kamis, 22 Okt 2026 (greetings) */
+	long: 'EEEE, d MMM yyyy',
+	/** 10:00 */
+	time: 'HH:mm'
+} as const;
+export type DateStyle = keyof typeof DATE_PATTERNS;
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Indonesian date display, always in WIB.
+ * A `yyyy-MM-dd` string (Postgres `date`) is a calendar day and is never shifted by time zone.
+ */
+export function dateID(value: Date | number | string, style: DateStyle = 'date'): string {
+	if (typeof value === 'string' && DATE_ONLY.test(value)) {
+		if (style === 'datetime' || style === 'time') {
+			throw new Error(`dateID: "${value}" is a calendar date and has no time`);
+		}
+		const [y, m, d] = value.split('-').map(Number);
+		return format(new Date(y, m - 1, d), DATE_PATTERNS[style], { locale: localeId });
+	}
+	const instant = typeof value === 'string' ? new Date(value) : value;
+	return format(instant, DATE_PATTERNS[style], { locale: localeId, in: wib });
+}
+
+/**
+ * Normalise a phone number to digits with country code: `0812-3456-7890` → `6281234567890`.
+ * Indonesian numbers (0…, 8…, 62…, +62 (0)…) become `62…`; other `+` numbers keep their code.
+ * Returns null when empty or not a plausible number (8–15 digits).
+ */
+export function phoneNormalize(raw: string | null | undefined): string | null {
+	if (!raw) return null;
+	const trimmed = raw.trim();
+	let digits = trimmed.replace(/\D/g, '');
+	if (!digits) return null;
+
+	if (digits.startsWith('62')) {
+		digits = '62' + digits.slice(2).replace(/^0+/, '');
+	} else if (digits.startsWith('0')) {
+		digits = '62' + digits.replace(/^0+/, '');
+	} else if (digits.startsWith('8') && !trimmed.startsWith('+')) {
+		digits = '62' + digits;
+	}
+
+	return digits.length >= 8 && digits.length <= 15 ? digits : null;
 }
 
 const MINUS = '−';

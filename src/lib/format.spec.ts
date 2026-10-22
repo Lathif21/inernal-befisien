@@ -1,5 +1,52 @@
 import { describe, it, expect } from 'vitest';
-import { dayKeyWib, nowWib, rupiah, rupiahShort } from './format';
+import { dateID, dayKeyWib, nowWib, phoneNormalize, rupiah, rupiahShort } from './format';
+
+describe('dateID', () => {
+	// 2026-10-22 03:00 UTC = Kamis 22 Okt 2026 10:00 WIB
+	const instant = new Date('2026-10-22T03:00:00Z');
+
+	it('formats instants in WIB with Indonesian names', () => {
+		expect(dateID(instant)).toBe('22 Okt 2026');
+		expect(dateID(instant, 'datetime')).toBe('22 Okt 10:00');
+		expect(dateID(instant, 'long')).toBe('Kamis, 22 Okt 2026');
+		expect(dateID(instant, 'time')).toBe('10:00');
+	});
+
+	it('uses the WIB calendar day, not UTC, near midnight', () => {
+		// 17:30 UTC on the 21st is already 00:30 on the 22nd in Jakarta
+		expect(dateID(new Date('2026-10-21T17:30:00Z'), 'datetime')).toBe('22 Okt 00:30');
+	});
+
+	it('treats yyyy-MM-dd as a calendar day without shifting it', () => {
+		expect(dateID('2026-05-01')).toBe('1 Mei 2026');
+		expect(dateID('2026-12-31', 'long')).toBe('Kamis, 31 Des 2026');
+		expect(() => dateID('2026-05-01', 'time')).toThrow();
+	});
+});
+
+describe('phoneNormalize', () => {
+	it.each([
+		['0812-3456-7890', '6281234567890'],
+		['+62 812 3456 7890', '6281234567890'],
+		['+62 (0)812 3456 7890', '6281234567890'],
+		['62 0812 3456 7890', '6281234567890'],
+		['6281234567890', '6281234567890'],
+		['812 3456 7890', '6281234567890'],
+		['(021) 555-1234', '62215551234'],
+		['+65 9123 4567', '6591234567']
+	])('%s → %s', (raw, expected) => {
+		expect(phoneNormalize(raw)).toBe(expected);
+	});
+
+	it('returns null for empty or implausible input', () => {
+		expect(phoneNormalize('')).toBeNull();
+		expect(phoneNormalize(null)).toBeNull();
+		expect(phoneNormalize('  ')).toBeNull();
+		expect(phoneNormalize('abc')).toBeNull();
+		expect(phoneNormalize('0812')).toBeNull();
+		expect(phoneNormalize('0812 3456 7890 1234 5678')).toBeNull();
+	});
+});
 
 describe('WIB time handling', () => {
 	it('rolls over to the next day at midnight WIB, not UTC', () => {

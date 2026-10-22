@@ -15,3 +15,5 @@ export function createDb(url: string) {
 
 export type Db = ReturnType<typeof createDb>;
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+/** First argument of every service: the app's db, a Trigger.dev task's db, or an open transaction */
+export type DbOrTx = Db | Tx;

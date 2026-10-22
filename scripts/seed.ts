@@ -8,6 +8,7 @@ import { generateNKeysBetween } from 'fractional-indexing';
 import { parseArgs } from 'node:util';
 import { TZ } from '../src/lib/format.ts';
 import { createDb, type Tx } from '../src/lib/server/db/client.ts';
+import { logActivity } from '../src/lib/server/services/activity.ts';
 import {
 	action,
 	activity,
@@ -796,9 +797,9 @@ async function log(
 	days: number
 ) {
 	const { dealId, ...rest } = meta as { dealId?: string };
-	await tx.insert(activity).values({
+	await logActivity(tx, {
 		clientId,
-		dealId: dealId ?? null,
+		dealId,
 		type,
 		body,
 		meta: rest,
