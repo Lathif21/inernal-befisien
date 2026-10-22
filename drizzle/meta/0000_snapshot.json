@@ -1,0 +1,152 @@
+{
+  "id": "71c0e49c-6238-41de-acde-ce9cc0b0910c",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {},
+  "enums": {
+    "public.activity_type": {
+      "name": "activity_type",
+      "schema": "public",
+      "values": [
+        "note",
+        "call",
+        "meeting",
+        "whatsapp",
+        "email",
+        "stage_change",
+        "action_done",
+        "transaction",
+        "ai_accepted",
+        "system"
+      ]
+    },
+    "public.client_source": {
+      "name": "client_source",
+      "schema": "public",
+      "values": [
+        "website",
+        "referral",
+        "apollo",
+        "event",
+        "existing_network",
+        "other"
+      ]
+    },
+    "public.client_status": {
+      "name": "client_status",
+      "schema": "public",
+      "values": [
+        "prospect",
+        "active",
+        "inactive",
+        "archived"
+      ]
+    },
+    "public.deal_stage": {
+      "name": "deal_stage",
+      "schema": "public",
+      "values": [
+        "lead",
+        "contacted",
+        "meeting",
+        "proposal",
+        "negotiation",
+        "won",
+        "lost"
+      ]
+    },
+    "public.industry": {
+      "name": "industry",
+      "schema": "public",
+      "values": [
+        "manufacturing",
+        "energy",
+        "logistics",
+        "finance",
+        "education",
+        "other"
+      ]
+    },
+    "public.payment_method": {
+      "name": "payment_method",
+      "schema": "public",
+      "values": [
+        "transfer",
+        "cash",
+        "card",
+        "ewallet",
+        "other"
+      ]
+    },
+    "public.plan_status": {
+      "name": "plan_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "achieved",
+        "dropped"
+      ]
+    },
+    "public.project_stage": {
+      "name": "project_stage",
+      "schema": "public",
+      "values": [
+        "onboarding",
+        "in_progress",
+        "review",
+        "done",
+        "maintenance"
+      ]
+    },
+    "public.service_type": {
+      "name": "service_type",
+      "schema": "public",
+      "values": [
+        "ai_agent",
+        "automation",
+        "integration",
+        "dashboard_app",
+        "web_cms",
+        "energy_ai",
+        "other"
+      ]
+    },
+    "public.txn_status": {
+      "name": "txn_status",
+      "schema": "public",
+      "values": [
+        "planned",
+        "paid",
+        "cancelled"
+      ]
+    },
+    "public.txn_type": {
+      "name": "txn_type",
+      "schema": "public",
+      "values": [
+        "income",
+        "expense"
+      ]
+    },
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "admin",
+        "sales",
+        "finance"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

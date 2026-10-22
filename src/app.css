@@ -1,0 +1,160 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/plus-jakarta-sans/wght.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import './lib/styles/bf.css' layer(components);
+
+/* Values from docs/design-system/tokens.json. Token name = CSS variable name.
+   `static` keeps every variable in the output: bf.css reads them directly. */
+@theme static {
+	/* Colours */
+	--color-accent: #1f5bea;
+	--color-accent-hover: #163ba6;
+	--color-accent-ink: #1f4fd6;
+	--color-navy: #0b1840;
+	--color-navy-2: #16285e;
+	--color-sky: #9fd4ff;
+	--color-tint: #dde8ff;
+	--color-tint-2: #eef3ff;
+	--color-surface: #ffffff;
+	--color-line: #dce4f5;
+	--color-line-strong: #7a90c4;
+	--color-ink: var(--color-navy);
+	--color-ink-2: #3e4c75;
+	--color-ink-3: #5e6a8e;
+	--color-ink-disabled: #b9c4de;
+	--color-on-accent: #ffffff;
+	--color-on-accent-muted: #e3ebff;
+	--color-on-dark-muted: #b8c6ec;
+	--color-on-dark-link: #d5e1ff;
+	--color-success: #0e6b47;
+	--color-success-fill: #13865a;
+	--color-success-bg: #ddf5ea;
+	--color-danger: #a12822;
+	--color-danger-fill: #c8322b;
+	--color-danger-bg: #fde3e1;
+	--color-warning: #9a5b00;
+	--color-warning-fill: #e0a100;
+	--color-warning-bg: #ffefc7;
+	--color-ai: #5b2db8;
+	--color-ai-bg: #f7f2ff;
+	--color-ai-chip-bg: #efe7ff;
+	--color-ai-line: #d9c9ff;
+	--color-stage-lead: var(--color-line-strong);
+	--color-stage-contacted: #7fa6f5;
+	--color-stage-meeting: #4c7fef;
+	--color-stage-proposal: var(--color-accent);
+	--color-stage-negotiation: var(--color-navy);
+	--color-chart-income: var(--color-accent);
+	--color-chart-expense: var(--color-navy);
+	--color-chart-planned: var(--color-sky);
+	--color-chart-profit: var(--color-success-fill);
+
+	/* Type */
+	--font-sans:
+		'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
+	--text-page-title: 28px;
+	--text-page-title--line-height: 1.15;
+	--text-page-title--font-weight: 800;
+	--text-page-title--letter-spacing: -0.02em;
+	--text-greeting: 26px;
+	--text-greeting--line-height: 1.2;
+	--text-greeting--font-weight: 800;
+	--text-greeting--letter-spacing: -0.02em;
+	--text-kpi: 26px;
+	--text-kpi--line-height: 1.15;
+	--text-kpi--font-weight: 800;
+	--text-section-title: 18px;
+	--text-section-title--line-height: 1.3;
+	--text-section-title--font-weight: 700;
+	--text-plan-goal: 17px;
+	--text-plan-goal--line-height: 1.3;
+	--text-plan-goal--font-weight: 800;
+	--text-card-title: 14.5px;
+	--text-card-title--line-height: 1.3;
+	--text-card-title--font-weight: 700;
+	--text-body: 14px;
+	--text-body--line-height: 1.5;
+	--text-body--font-weight: 500;
+	--text-small: 12.5px;
+	--text-small--line-height: 1.4;
+	--text-small--font-weight: 600;
+	--text-eyebrow: 12.5px;
+	--text-eyebrow--line-height: 1.3;
+	--text-eyebrow--font-weight: 800;
+	--text-eyebrow--letter-spacing: 0.04em;
+	--text-mono: 12px;
+	--text-mono--line-height: 1.4;
+	--text-mono--font-weight: 500;
+
+	/* Radius */
+	--radius-sm: 8px;
+	--radius-control: 12px;
+	--radius-kanban: 14px;
+	--radius-card: 18px;
+	--radius-panel: 22px;
+	--radius-hero: 36px;
+	--radius-pill: 999px;
+
+	/* Shadow */
+	--shadow-raised: 0 18px 36px -22px rgba(11, 24, 64, 0.45);
+	--shadow-modal: 0 30px 60px -24px rgba(5, 15, 50, 0.6);
+}
+
+:root {
+	/* Spacing and size tokens (used as var() / arbitrary values, not utilities) */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 20px;
+	--space-6: 24px;
+	--space-7: 28px;
+	--space-8: 32px;
+	--size-touch: 44px;
+	--size-control-sm: 36px;
+	--size-sidebar: 240px;
+	--size-kanban-column: 272px;
+	--size-avatar: 28px;
+}
+
+@layer base {
+	html {
+		-webkit-text-size-adjust: 100%;
+	}
+	body {
+		margin: 0;
+		background: var(--color-tint-2);
+		color: var(--color-ink);
+		font-family: var(--font-sans);
+		font-size: 14px;
+		font-weight: 500;
+		line-height: 1.5;
+		font-variant-numeric: tabular-nums;
+		-webkit-font-smoothing: antialiased;
+	}
+	:focus-visible {
+		outline: 3px solid var(--color-accent);
+		outline-offset: 2px;
+	}
+	[disabled] {
+		cursor: not-allowed;
+	}
+}
+
+/* Page content column under the Topbar: tint-2 ground, max 1240px, 16 → 28px padding */
+@utility page-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-6);
+	width: 100%;
+	max-width: 1240px;
+	margin-inline: auto;
+	padding: var(--space-4);
+	@media (width >= 40rem) {
+		padding: var(--space-6);
+	}
+	@media (width >= 64rem) {
+		padding: var(--space-7);
+	}
+}

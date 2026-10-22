@@ -4,7 +4,17 @@ Internal CRM + finance app for Befisien Technologies. Read `docs/01-PRD.md` to `
 
 ## Stack
 
-SvelteKit (Svelte 5 runes, TypeScript) · Neon Postgres · Drizzle ORM (`postgres-js`, `prepare: false`) · Better Auth · Tailwind v4 + shadcn-svelte · Superforms + Zod · svelte-dnd-action · fractional-indexing · LayerChart · Trigger.dev v4 (`@trigger.dev/sdk`) · Resend (from info@befisien.com) · Telegram Bot API · adapter-node on a VPS.
+SvelteKit 3 (Svelte 5 runes, TypeScript) · Neon Postgres (project `long-truth-57557441`, branch `production`, aws us-east-2; linked via `neon.ts` / `.neon`) · Drizzle ORM with `node-postgres` (`pg`) on the pooled URL, `attachDatabasePool` on Vercel · Better Auth · Tailwind v4 + bits-ui primitives + svelte-sonner (instead of the shadcn-svelte CLI) · Lucide (`@lucide/svelte`) · Superforms + Zod · svelte-dnd-action · fractional-indexing · LayerChart · Trigger.dev v4 (`@trigger.dev/sdk`) · Resend (from info@befisien.com) · Telegram Bot API · Staging on Vercel (`befisien/befisien-crm`, https://befisien-crm.vercel.app, region `cle1`, adapter-vercel when `VERCEL=1`) · Production planned on a VPS with adapter-node.
+
+## SvelteKit 3 notes (the docs were written for SvelteKit 2)
+
+- **Imports:** there is no `$lib` alias. Use `#lib/...` with the file extension: `import { db } from '#lib/server/db/index.ts'`. Files shared with Trigger.dev still use relative imports.
+- **Env vars:** declare each one in `src/env.ts` (`defineEnvVars`), read them from `$app/env/private` / `$app/env/public`. `dev` / `building` come from `$app/env`.
+- **Links:** internal `href`s go through `resolve()` from `$app/paths` (lint rule). Paths have **no leading slash**: `resolve('clients')`, `''` for home. Types: `Path` from `$app/types`.
+- **Config** lives in `vite.config.ts` (`sveltekit({...})`); there is no `svelte.config.js`.
+- **Origin / CSRF in production:** adapter-node 6 ignores `ORIGIN`. It derives the origin from the `Host` header and assumes https; behind Nginx set `PROTOCOL_HEADER=x-forwarded-proto`. Better Auth uses `BETTER_AUTH_URL`.
+- **Inputs:** use `defaultValue={…}` (not `value={…}`) for server-provided initial values, so text typed before hydration is kept.
+- **UI primitives:** build drawers, dialogs, menus, selects and popovers on `bits-ui`, styled with the `bf-*` recipes (`src/lib/styles/bf.css`) and theme classes. Toasts: `toast` from `#lib/toast.ts`.
 
 ## Commands
 
@@ -15,6 +25,7 @@ npm run lint
 npm run test           # vitest
 npm run db:generate    # drizzle-kit generate (after schema changes)
 npm run db:migrate     # apply migrations (DATABASE_URL_UNPOOLED)
+npm run user:create -- --email … --name "…" [--password …] [--role admin]
 npx trigger.dev@latest dev
 ```
 

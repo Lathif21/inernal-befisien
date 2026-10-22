@@ -11,13 +11,13 @@ Legend: `[ ]` to do · `[x]` done · **Depends:** the task(s) that must be finis
 
 Goal: an empty but deployed, branded app where the 2 admins can log in.
 
-### [ ] P0-01 Project scaffold
+### [x] P0-01 Project scaffold
 
 - `npx sv create befisien-crm` (minimal, TypeScript, Svelte 5), then add Tailwind v4, ESLint and Prettier
 - Add `adapter-node`. Set `TZ=Asia/Jakarta` handling in `format.ts`.
 - **Done when:** `npm run dev` shows a page, lint passes, and the repo is pushed to GitHub (private).
 
-### [ ] P0-02 Neon + Drizzle
+### [x] P0-02 Neon + Drizzle
 
 **Depends:** P0-01
 
@@ -26,8 +26,9 @@ Goal: an empty but deployed, branded app where the 2 admins can log in.
 - Create `db/client.ts` (`createDb(url)`, relative imports only) and `db/index.ts`
 - npm scripts: `db:generate`, `db:migrate`, `db:studio`
 - **Done when:** a first migration runs on the `dev` branch.
+- _Note: development currently uses a local Postgres 18 database (`befisien_crm_dev`) instead of a Neon `dev` branch. The Neon project (Singapore, `main` + `dev`) still has to be created before P0-05._
 
-### [ ] P0-03 Auth (Better Auth)
+### [x] P0-03 Auth (Better Auth)
 
 **Depends:** P0-02
 
@@ -36,8 +37,9 @@ Goal: an empty but deployed, branded app where the 2 admins can log in.
 - `hooks.server.ts` session → `locals.user`. `(app)/+layout.server.ts` guard.
 - `scripts/create-user.ts` (email, name, password, role)
 - **Done when:** both admins can log in and out. `/` redirects to `/login` when logged out. Sign-up is impossible.
+- _Note: one admin (`nama@befisien.com`) exists in local dev; create the second with `npm run user:create` once their details are known. Production admins are created in P0-05._
 
-### [ ] P0-04 Design system & app shell
+### [x] P0-04 Design system & app shell
 
 **Depends:** P0-01
 
@@ -47,6 +49,7 @@ Goal: an empty but deployed, branded app where the 2 admins can log in.
 - Login page per `03-SCREENS.md` §1 (with the hero 3D image)
 - Copy the 3D images from the website into `static/illustrations/`
 - **Done when:** the logged-in shell looks like the design, works at phone width, and all sidebar links route to placeholder pages.
+- _Note: the shadcn-svelte CLI needs an interactive preset and its default grey theme conflicts with the design system, so components are built on `bits-ui` (the primitives shadcn-svelte uses) + `svelte-sonner`, styled with the `bf-*` recipes. Login hero is composed from the befisien.com layers (`hero-base` + chat / dot / gear). `finance.webp` does not exist on the site yet (needed for the empty Invoice state in P2)._
 
 ### [ ] P0-05 Deploy to VPS
 
@@ -55,6 +58,7 @@ Goal: an empty but deployed, branded app where the 2 admins can log in.
 - Dockerfile, `docker-compose.yml`, Nginx block, Certbot for `crm.befisien.com`
 - Production Neon `main` migrated. Admin users created.
 - **Done when:** `https://crm.befisien.com` serves the app over HTTPS and survives a VPS reboot.
+- _Note: staging is live on Vercel first (https://befisien-crm.vercel.app, project `befisien/befisien-crm`, functions in `cle1`) against Neon `long-truth-57557441` / branch `production` (aws us-east-2, migrated, admin created). The VPS deploy is still open._
 
 ---
 

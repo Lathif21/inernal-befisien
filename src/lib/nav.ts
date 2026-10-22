@@ -1,0 +1,41 @@
+import type { Component } from 'svelte';
+import type { Path } from '$app/types';
+import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
+import Target from '@lucide/svelte/icons/target';
+import SquareKanban from '@lucide/svelte/icons/square-kanban';
+import FolderKanban from '@lucide/svelte/icons/folder-kanban';
+import Users from '@lucide/svelte/icons/users';
+import Wallet from '@lucide/svelte/icons/wallet';
+import FileText from '@lucide/svelte/icons/file-text';
+import Settings from '@lucide/svelte/icons/settings';
+
+export type NavItem = {
+	label: string;
+	href: Path;
+	icon: Component<{ size?: number; strokeWidth?: number }>;
+	/** Shown muted with a "Fase 2" chip until the feature ships */
+	phase?: 2;
+	/** Rendered at the bottom of the sidebar */
+	bottom?: boolean;
+	/** Strategi carries the late + due-today badge */
+	badge?: 'strategy';
+};
+
+// Order and labels from docs/03-SCREENS.md → Navigation.
+// SvelteKit 3 paths have no leading slash ('' = home); render them with resolve().
+export const navItems: NavItem[] = [
+	{ label: 'Dashboard', href: '', icon: LayoutDashboard },
+	{ label: 'Strategi', href: 'strategy', icon: Target, badge: 'strategy' },
+	{ label: 'Pipeline Sales', href: 'pipeline', icon: SquareKanban },
+	{ label: 'Proyek', href: 'projects', icon: FolderKanban },
+	{ label: 'Klien', href: 'clients', icon: Users },
+	{ label: 'Keuangan', href: 'finance', icon: Wallet },
+	{ label: 'Invoice', href: 'invoices', icon: FileText, phase: 2 },
+	{ label: 'Pengaturan', href: 'settings', icon: Settings, bottom: true }
+];
+
+/** `pathname` is page.url.pathname (with a leading slash) */
+export function isActive(item: NavItem, pathname: string): boolean {
+	if (item.href === '') return pathname === '/';
+	return pathname === `/${item.href}` || pathname.startsWith(`/${item.href}/`);
+}
