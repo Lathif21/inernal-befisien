@@ -251,10 +251,17 @@ const aiAnswer = z.object({
 		.array(
 			z.object({
 				kind: z.enum(AI_KINDS),
-				target_id: z.string().nullable(),
+				// "" (or null from models that send it) = none
+				target_id: z
+					.string()
+					.nullable()
+					.transform((v) => v?.trim() || null),
 				insight: z.string().trim().min(5).max(800),
 				proposed_action: z.string().trim().min(3).max(300),
-				proposed_due_at: z.string().nullable()
+				proposed_due_at: z
+					.string()
+					.nullable()
+					.transform((v) => v?.trim() || null)
 			})
 		)
 		.max(3)
@@ -320,7 +327,10 @@ export async function generateSuggestions(
 		schema: SUGGEST_SCHEMA,
 		schemaName: 'saran_ai'
 	});
-	const parsed = aiAnswer.safeParse(answer.json);
+	// Some models (MiniMax) return the bare list instead of { suggestions: [...] }
+	const parsed = aiAnswer.safeParse(
+		Array.isArray(answer.json) ? { suggestions: answer.json } : answer.json
+	);
 	if (!parsed.success)
 		throw new Error(`AI answer does not match the schema: ${parsed.error.message}`);
 
@@ -381,6 +391,8 @@ export type AcceptInput = {
 	title?: string;
 	/** WIB wall time `yyyy-MM-ddTHH:mm`; default = proposed time, else tomorrow 09:00 */
 	dueAt?: string;
+	/** A step for the whole day (dueAt's time is ignored) */
+	allDay?: boolean;
 	/** Required when the suggestion is about the client in general */
 	target?: CardRef;
 	assigneeId?: string;
@@ -414,8 +426,8 @@ export async function acceptSuggestion(
 		const step = stepSchema.safeParse({
 			title: (input.title ?? s.proposedAction).slice(0, 200),
 			dueDate: local.slice(0, 10),
-			dueTime: local.slice(11, 16),
-			allDay: false,
+			dueTime: input.allDay ? '' : local.slice(11, 16),
+			allDay: input.allDay ?? false,
 			assigneeId: input.assigneeId ?? ''
 		});
 		if (!step.success) throw new ServiceError(step.error.issues[0].message, 'step');

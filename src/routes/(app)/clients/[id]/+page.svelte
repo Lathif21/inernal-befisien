@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { enhance as kitEnhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { deserialize, enhance as kitEnhance } from '$app/forms';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { superForm } from 'sveltekit-superforms';
@@ -18,6 +18,7 @@
 	import Avatar from '#lib/components/Avatar.svelte';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import Pager from '#lib/components/Pager.svelte';
+	import AiPanel from '#lib/components/ai/AiPanel.svelte';
 	import PeriodFilter from '#lib/components/PeriodFilter.svelte';
 	import StatTile from '#lib/components/StatTile.svelte';
 	import TransactionFormDrawer from '#lib/components/finance/TransactionFormDrawer.svelte';
@@ -47,6 +48,7 @@
 	import { dateID, dateToWibLocal, phoneDisplay, rupiah, rupiahShort } from '#lib/format.ts';
 	import type { ContactRow } from '#lib/server/services/contacts.ts';
 	import { refreshThenToast } from '#lib/enhance.ts';
+	import { stepFields, type StepValue } from '#lib/step-form.ts';
 	import { toast } from '#lib/toast.ts';
 	import type { PageProps } from './$types';
 
@@ -179,6 +181,57 @@
 		const t = setInterval(() => (now = new Date()), 60_000);
 		return () => clearInterval(t);
 	});
+
+	// ---------- Saran AI (P2-02) ----------
+	async function post(action: string, fields: Record<string, string>) {
+		const body = new FormData();
+		for (const [k, v] of Object.entries(fields)) body.append(k, v);
+		const res = await fetch(`?/${action}`, {
+			method: 'POST',
+			body,
+			headers: { 'x-sveltekit-action': 'true' }
+		});
+		return deserialize(await res.text());
+	}
+	/** Field errors stay in the form; otherwise refresh, then confirm */
+	async function settle(result: Awaited<ReturnType<typeof post>>) {
+		if (result.type === 'failure') {
+			const fields = result.data?.fields as Record<string, string> | undefined;
+			if (fields) return fields;
+			toast.error(String(result.data?.error ?? 'Perubahan gagal disimpan.'));
+			return {};
+		}
+		if (result.type !== 'success') {
+			toast.error('Perubahan gagal disimpan.');
+			return {};
+		}
+		await invalidateAll();
+		toast.success(String(result.data?.done ?? 'Tersimpan.'));
+	}
+	const aiCards = $derived([
+		...data.deals
+			.filter((d) => d.stage !== 'won' && d.stage !== 'lost')
+			.map((d) => ({ value: `deal:${d.id}`, label: `Deal · ${d.title}` })),
+		...data.projects
+			.filter((p) => p.stage !== 'done')
+			.map((p) => ({ value: `project:${p.id}`, label: `Proyek · ${p.name}` }))
+	]);
+	const aiAccept = (id: string, value: StepValue, card: string | null) => {
+		const [cardType, cardId] = card ? card.split(':') : [];
+		return post('acceptSuggestion', {
+			id,
+			...stepFields(value),
+			...(card ? { cardType, cardId } : {})
+		}).then(settle);
+	};
+	const aiDismiss = (id: string) =>
+		post('dismissSuggestion', { id })
+			.then(settle)
+			.then(() => {});
+	const aiAsk = () =>
+		post('askAi', { clientId: c.id })
+			.then(settle)
+			.then(() => {});
 
 	const openDeals = $derived(data.deals.filter((d) => d.stage !== 'won' && d.stage !== 'lost'));
 	const activeProjects = $derived(data.projects.filter((p) => p.stage !== 'done'));
@@ -404,6 +457,17 @@
 			</div>
 
 			<div class="flex flex-col gap-6">
+				{#if !archived}
+					<AiPanel
+						suggestions={data.suggestions}
+						cardsFor={() => aiCards}
+						assignees={data.owners}
+						onaccept={aiAccept}
+						ondismiss={aiDismiss}
+						onask={data.aiEnabled ? aiAsk : undefined}
+						limit={3}
+					/>
+				{/if}
 				{#each data.activeProjects as p (p.id)}
 					<section
 						class="flex flex-col gap-3 rounded-card bg-surface p-5"

@@ -6,8 +6,8 @@
 	import Check from '@lucide/svelte/icons/check';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
-	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import EmptyState from '#lib/components/EmptyState.svelte';
+	import AiPanel from '#lib/components/ai/AiPanel.svelte';
 	import Pager from '#lib/components/Pager.svelte';
 	import PeriodFilter from '#lib/components/PeriodFilter.svelte';
 	import Topbar from '#lib/components/layout/Topbar.svelte';
@@ -166,6 +166,32 @@
 		post('moveStep', { id, direction }).then(settle);
 	const planStatus = (id: string, status: 'achieved' | 'dropped') =>
 		post('planStatus', { id, status }).then(settle);
+
+	// ---------- Saran AI (P2-02) ----------
+	const cardsFor = (clientId: string) => [
+		...data.cards.deals
+			.filter((d) => d.clientId === clientId)
+			.map((d) => ({ value: `deal:${d.id}`, label: `Deal · ${d.title}` })),
+		...data.cards.projects
+			.filter((p) => p.clientId === clientId)
+			.map((p) => ({ value: `project:${p.id}`, label: `Proyek · ${p.title}` }))
+	];
+	const aiAccept = (id: string, value: StepValue, card: string | null) => {
+		const [cardType, cardId] = card ? card.split(':') : [];
+		return post('acceptSuggestion', {
+			id,
+			...stepFields(value),
+			...(card ? { cardType, cardId } : {})
+		}).then(settle);
+	};
+	const aiDismiss = (id: string) =>
+		post('dismissSuggestion', { id })
+			.then(settle)
+			.then(() => {});
+	const askAi = (planId: string) =>
+		post('askAi', { planId })
+			.then(settle)
+			.then(() => {});
 </script>
 
 {#snippet attentionRow(s: StrategyStep, tone: 'late' | 'today')}
@@ -308,6 +334,7 @@
 						onmove={moveStep}
 						onedit={() => planDrawer?.openEdit(plan)}
 						onstatus={(status) => planStatus(plan.id, status)}
+						onask={data.aiEnabled ? () => askAi(plan.id) : undefined}
 					/>
 				{/each}
 				<Pager
@@ -321,22 +348,20 @@
 		</section>
 
 		<div class="contents lg:order-2 lg:flex lg:flex-col lg:gap-6">
-			<!-- Saran AI: filled in Phase 2 (P2-02) -->
-			<section
-				class="order-1 flex flex-col gap-2 rounded-card border border-ai-line bg-ai-bg p-5"
-				aria-label="Saran AI"
-			>
-				<h2 class="flex items-center gap-2 text-section-title text-ai">
-					<Sparkles size={18} strokeWidth={1.9} aria-hidden="true" />
-					Saran AI
-				</h2>
-				<p class="text-small text-ink-2">
-					Saran langkah dari riwayat klien hadir di Fase 2. Saran AI tidak pernah dipakai tanpa
-					persetujuan Anda.
-				</p>
-			</section>
+			<AiPanel
+				class="order-1"
+				suggestions={data.suggestions}
+				showClient
+				{cardsFor}
+				assignees={data.owners}
+				onaccept={aiAccept}
+				ondismiss={aiDismiss}
+			/>
 
-			<section class="order-3 flex flex-col gap-3 rounded-card bg-surface p-5" aria-label="Jadwal">
+			<section
+				class="order-3 flex min-w-0 flex-col gap-3 rounded-card bg-surface p-5"
+				aria-label="Jadwal"
+			>
 				<h2 class="text-section-title">Jadwal</h2>
 				<p class="-mt-2 text-small text-ink-3">{data.period.label}</p>
 				{#if days.length === 0}

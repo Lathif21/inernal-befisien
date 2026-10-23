@@ -23,6 +23,9 @@ import {
 	updatePlan
 } from '#lib/server/services/plans.ts';
 import { stepActions } from '#lib/server/step-actions.ts';
+import { aiActions } from '#lib/server/ai-actions.ts';
+import { aiEnabled } from '#lib/server/ai-config.ts';
+import { listOpenSuggestions } from '#lib/server/services/ai-suggestions.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 const params = z.object({
@@ -45,16 +48,28 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	);
 	const filters = { q: p.q || undefined, mineOf: p.mine ? user.id : undefined };
 
-	const [plans, attention, schedule, owners, cards, planForm] = await Promise.all([
+	const [plans, attention, schedule, owners, cards, planForm, suggestions] = await Promise.all([
 		listPlans(db, { ...filters, page: p.plans }),
 		attentionSteps(db, filters),
 		scheduleSteps(db, period.fromInstant, period.toInstant, filters),
 		listOwners(db),
 		listPlanCards(db),
-		superValidate(zod4(planSchema))
+		superValidate(zod4(planSchema)),
+		listOpenSuggestions(db)
 	]);
 
-	return { plans, attention, schedule, owners, cards, planForm, period, params: p };
+	return {
+		plans,
+		attention,
+		schedule,
+		owners,
+		cards,
+		planForm,
+		suggestions,
+		aiEnabled: aiEnabled(),
+		period,
+		params: p
+	};
 };
 
 function fieldErrors(issues: z.core.$ZodIssue[]) {
@@ -67,6 +82,7 @@ const uuid = z.uuid();
 
 export const actions: Actions = {
 	...stepActions,
+	...aiActions,
 
 	savePlan: async ({ request, locals }) => {
 		const user = requireUser(locals);

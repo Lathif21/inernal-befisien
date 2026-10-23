@@ -24,9 +24,23 @@
 		onmove: (stepId: string, direction: 'up' | 'down') => void;
 		onedit: () => void;
 		onstatus: (status: 'achieved' | 'dropped') => void;
+		/** "Minta saran AI" for this plan; omitted = button disabled (AI not configured) */
+		onask?: () => Promise<void>;
 	};
 
-	let { plan, now, assignees, oncomplete, onaddstep, onmove, onedit, onstatus }: Props = $props();
+	let { plan, now, assignees, oncomplete, onaddstep, onmove, onedit, onstatus, onask }: Props =
+		$props();
+
+	let asking = $state(false);
+	async function ask() {
+		if (!onask) return;
+		asking = true;
+		try {
+			await onask();
+		} finally {
+			asking = false;
+		}
+	}
 
 	const PER_PAGE = 4;
 	// Opens on the page with the first unfinished step; other pages are fetched on demand.
@@ -236,15 +250,16 @@
 				<Plus size={15} strokeWidth={2} />
 				Tambah langkah
 			</button>
-			<!-- Phase 2 (P2-02): asks the AI for suggestions on this plan -->
+			<!-- Asks the AI for suggestions on this plan (P2-02); they appear under Saran AI -->
 			<button
 				type="button"
 				class="bf-btn bf-btn--ai bf-btn--sm"
-				disabled
-				title="Tersedia di Fase 2"
+				disabled={!onask || asking}
+				title={onask ? 'Saran muncul di bagian Saran AI' : 'AI belum diatur'}
+				onclick={ask}
 			>
-				<Sparkles size={15} strokeWidth={1.9} />
-				Minta saran AI
+				<Sparkles size={15} strokeWidth={1.9} class={asking ? 'animate-pulse' : ''} />
+				{asking ? 'Meminta saran…' : 'Minta saran AI'}
 			</button>
 		</div>
 	{/if}

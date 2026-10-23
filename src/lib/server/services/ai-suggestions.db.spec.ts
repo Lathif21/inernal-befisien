@@ -152,6 +152,26 @@ describe.skipIf(!isDevDb)('AI suggestions (dev database, fake model)', { timeout
 		});
 	});
 
+	it('accepts the bare list and "" for none (models that bend the schema)', async () => {
+		await inRollback(async (tx, userId) => {
+			const { clientId, dealId } = await setup(tx, userId);
+			const loose = fakeAi([
+				suggestion({ target_id: dealId }),
+				suggestion({ kind: 'pipeline', target_id: '', proposed_due_at: '' })
+			]);
+			const r = await generateSuggestions(tx, clientId, { complete: loose.complete, now: NOW });
+			expect(r).toMatchObject({ status: 'created', count: 2 });
+			const general = (await listOpenSuggestions(tx, { clientId })).find(
+				(s) => s.kind === 'pipeline'
+			)!;
+			expect([general.dealId, general.projectId, general.proposedDueAt]).toEqual([
+				null,
+				null,
+				null
+			]);
+		});
+	});
+
 	it('stores nothing when the model answers outside the schema', async () => {
 		await inRollback(async (tx, userId) => {
 			const { clientId } = await setup(tx, userId);

@@ -33,6 +33,9 @@ import {
 	listTransactions
 } from '#lib/server/services/transactions.ts';
 import { transactionActions } from '#lib/server/transaction-actions.ts';
+import { aiActions } from '#lib/server/ai-actions.ts';
+import { aiEnabled } from '#lib/server/ai-config.ts';
+import { listOpenSuggestions } from '#lib/server/services/ai-suggestions.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 const CLIENT_TABS = ['ringkasan', 'kontak', 'deal', 'keuangan', 'aktivitas'] as const;
@@ -94,7 +97,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	if (!client) error(404, 'Klien tidak ditemukan.');
 
 	const active = projects.filter((p) => p.stage !== 'done');
-	const [nextActions, transactions, categories, txnForm] = await Promise.all([
+	const [nextActions, transactions, categories, txnForm, suggestions] = await Promise.all([
 		getNextActions(db, { projectIds: active.map((p) => p.id) }),
 		finance
 			? listTransactions(
@@ -104,7 +107,8 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 				)
 			: Promise.resolve(null),
 		finance ? listCategories(db) : Promise.resolve([]),
-		finance ? superValidate(zod4(transactionSchema)) : Promise.resolve(null)
+		finance ? superValidate(zod4(transactionSchema)) : Promise.resolve(null),
+		tab === 'ringkasan' ? listOpenSuggestions(db, { clientId: id }) : Promise.resolve([])
 	]);
 
 	return {
@@ -119,6 +123,8 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		tab,
 		finance:
 			transactions && txnForm ? { transactions, categories, txnForm, period, q, type } : null,
+		suggestions,
+		aiEnabled: aiEnabled(),
 		clientForm,
 		contactForm,
 		noteForm
@@ -129,6 +135,7 @@ const contactIdSchema = z.uuid();
 
 export const actions: Actions = {
 	...transactionActions,
+	...aiActions,
 	save: async ({ request, locals }) => saveClientForm(request, requireUser(locals).id),
 
 	saveContact: async ({ request, locals, params }) => {

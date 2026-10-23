@@ -250,7 +250,13 @@ export async function planStepsPage(db: DbOrTx, planId: string, page: number) {
 export async function listPlanCards(db: DbOrTx) {
 	const [deals, projects] = await Promise.all([
 		db
-			.select({ id: deal.id, title: deal.title, stage: deal.stage, clientName: client.name })
+			.select({
+				id: deal.id,
+				title: deal.title,
+				stage: deal.stage,
+				clientId: deal.clientId,
+				clientName: client.name
+			})
 			.from(deal)
 			.innerJoin(client, eq(client.id, deal.clientId))
 			.where(and(isNull(client.archivedAt), sql`${deal.stage} not in ('won', 'lost')`))
@@ -260,6 +266,7 @@ export async function listPlanCards(db: DbOrTx) {
 				id: project.id,
 				title: project.name,
 				stage: project.stage,
+				clientId: project.clientId,
 				clientName: client.name
 			})
 			.from(project)

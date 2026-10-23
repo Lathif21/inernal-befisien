@@ -235,11 +235,12 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - **Done when:** on the seed data, the service returns valid suggestions for each active client, and accepting one creates a step with the right date and time.
 - _Note: provider is Sumopod (OpenAI-compatible gateway, `SUMOPOD_API_KEY`), model `AI_MODEL` (default `claude-opus-5-5`), JSON-schema structured output + Zod. The prompt lives in `src/lib/server/ai/prompts/suggest.ts` (a .ts file so both the app and the Trigger.dev bundle include it). The skip hash covers stable facts only and is stored on `client.ai_input_hash`; new suggestions replace a client's older open ones. Seed run (24 Okt 2026): 7 active clients, 13 suggestions, ~16.6k in / 6k out tokens; a second run skipped 6 unchanged clients. `npm run ai:suggest [-- --force] [-- --accept-one]` runs it by hand._
 
-### [ ] P2-02 Saran AI on Strategi & client page
+### [x] P2-02 Saran AI on Strategi & client page
 
 - `AiSuggestionCard` (purple AI accent), Saran AI column on Strategi, a section on the client Ringkasan tab
 - "Minta saran AI" on a plan triggers the `ai-suggest-now` task and shows a loading state
 - **Done when:** accept and dismiss work, are logged in the activity timeline, and the disclaimer is visible.
+- _Note: "Minta saran AI" (on a plan, and on the client page) calls the service directly from the form action and waits (10-30 s, Vercel `maxDuration` 60) instead of triggering `ai-suggest-now`; P2-03 can move it onto Trigger.dev. Accept opens an inline step form (title, WIB date / time, PIC; a deal / project picker for client-wide suggestions). The JSON schema uses plain strings ("" = none) because MiniMax rejects nullable type lists, and the parser also accepts a bare list._
 
 ### [ ] P2-03 Trigger.dev AI jobs
 

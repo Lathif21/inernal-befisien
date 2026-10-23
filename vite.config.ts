@@ -6,7 +6,10 @@ import { sveltekit } from '@sveltejs/kit/vite';
 
 // Vercel sets VERCEL=1 during its builds (staging); everywhere else builds for the VPS (`node build`).
 // cle1 = Cleveland, next to the Neon database (aws us-east-2): every query is a round trip.
-const adapter = process.env.VERCEL ? vercelAdapter({ regions: ['cle1'] }) : nodeAdapter();
+// maxDuration: "Minta saran AI" waits for the model (10-30 s)
+const adapter = process.env.VERCEL
+	? vercelAdapter({ regions: ['cle1'], maxDuration: 60 })
+	: nodeAdapter();
 
 export default defineConfig({
 	plugins: [

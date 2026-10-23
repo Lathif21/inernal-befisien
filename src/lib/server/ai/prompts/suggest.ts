@@ -12,11 +12,11 @@ tim menutup deal, menjaga proyek tetap jalan, dan menagih pembayaran tepat waktu
 - Hanya gunakan fakta yang ada di data. Jangan mengarang nama orang, angka, tanggal, atau
   kejadian. Jika data kurang, sarankan cara mendapatkannya.
 - Setiap saran harus konkret: siapa / apa / lewat apa (telepon, WhatsApp, email, meeting),
-  dan untuk deal atau proyek mana (isi \`target_id\` dengan id dari data; null jika tentang
-  klien secara umum).
+  dan untuk deal atau proyek mana (isi \`target_id\` dengan id dari data; string kosong "" jika
+  tentang klien secara umum).
 - Beri waktu \`proposed_due_at\` dalam WIB, format "YYYY-MM-DDTHH:mm", setelah waktu sekarang,
-  paling lambat 14 hari ke depan, pada hari kerja (Senin-Jumat) jam 08:00-17:00. Isi null hanya
-  jika waktu benar-benar tidak penting.
+  paling lambat 14 hari ke depan, pada hari kerja (Senin-Jumat) jam 08:00-17:00. Isi string
+  kosong "" hanya jika waktu benar-benar tidak penting.
 - Jangan mengulang langkah yang sudah terjadwal atau saran yang masih terbuka (ada di data).
 - Jenis saran (\`kind\`):
   - "risk": sesuatu bisa gagal atau terlambat (langkah terlambat, deal diam lama, pembayaran tertunda).
@@ -29,7 +29,8 @@ tim menutup deal, menjaga proyek tetap jalan, dan menagih pembayaran tepat waktu
   tidak ada yang perlu dilakukan.
 - Ini hanya saran. Anda tidak mengubah data apa pun.`;
 
-/** JSON Schema of the answer (strict structured output) */
+/** JSON Schema of the answer (strict structured output). Plain strings, "" = none: some models
+    behind the gateway (MiniMax) reject nullable type lists. */
 export const SUGGEST_SCHEMA = {
 	type: 'object',
 	additionalProperties: false,
@@ -44,10 +45,10 @@ export const SUGGEST_SCHEMA = {
 				required: ['kind', 'target_id', 'insight', 'proposed_action', 'proposed_due_at'],
 				properties: {
 					kind: { type: 'string', enum: ['risk', 'opportunity', 'pipeline'] },
-					target_id: { type: ['string', 'null'] },
+					target_id: { type: 'string' },
 					insight: { type: 'string' },
 					proposed_action: { type: 'string' },
-					proposed_due_at: { type: ['string', 'null'] }
+					proposed_due_at: { type: 'string' }
 				}
 			}
 		}
