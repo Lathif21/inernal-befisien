@@ -10,13 +10,20 @@
 		children: Snippet;
 		/** Sticky bottom bar, usually Batal + one primary button */
 		footer?: Snippet;
+		/** Called when the person closes it (X, Esc, overlay) */
+		onclose?: () => void;
 	};
 
-	let { open = $bindable(), title, description, children, footer }: Props = $props();
+	let { open = $bindable(), title, description, children, footer, onclose }: Props = $props();
 </script>
 
-<!-- Right-side panel for create / edit forms. Full width on phones. -->
-<Dialog.Root bind:open>
+<!-- Right-side panel for create / edit forms and record details. Full width on phones. -->
+<Dialog.Root
+	bind:open
+	onOpenChange={(o) => {
+		if (!o) onclose?.();
+	}}
+>
 	<Dialog.Portal>
 		<Dialog.Overlay class="fixed inset-0 z-40 bg-navy/40" />
 		<Dialog.Content

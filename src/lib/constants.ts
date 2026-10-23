@@ -124,7 +124,13 @@ export const DEAL_STAGE_META: Record<DealStage, StageStyle & { probability: numb
 };
 
 /** Stages a deal can still move through; won / lost are terminal */
-export const OPEN_DEAL_STAGES = DEAL_STAGES.filter((s) => s !== 'won' && s !== 'lost');
+export const OPEN_DEAL_STAGES = [
+	'lead',
+	'contacted',
+	'meeting',
+	'proposal',
+	'negotiation'
+] as const satisfies readonly DealStage[];
 
 export const PROJECT_STAGE_META: Record<ProjectStage, StageStyle> = {
 	onboarding: { label: 'Onboarding', chip: 'bg-tint-2 text-ink-2', dot: 'bg-stage-contacted' },

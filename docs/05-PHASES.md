@@ -111,7 +111,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - "Pindah ke…" menu as the touch/keyboard alternative
 - **Done when:** a demo board with fake data drags smoothly on desktop, and the menu works on a phone.
 
-### [ ] P1-06 Sales Pipeline board
+### [x] P1-06 Sales Pipeline board
 
 **Depends:** P1-05, P1-04
 
@@ -120,6 +120,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - Lost modal (reason required). Won modal ("Deal menang! Buat proyek sekarang?") → `createProjectFromDeal`, which also sets the project's first next action.
 - Column totals. Filters. Deal drawer (details + timeline).
 - **Done when:** all stage moves persist with correct order after a refresh, won creates a linked project, and lost requires a reason.
+- _Note: pulled forward for the cards: `NextActionBox` + `lib/next-action.ts` (WIB late / today / upcoming with midnight tests; P1-07 keeps adding / completing steps and the "+ Tambah langkah" button) and `MoneyInput` (listed in P1-09). `services/actions.ts` has the read side (`getNextActions`)._
 
 ### [ ] P1-07 Steps (actions) & next action on cards
 

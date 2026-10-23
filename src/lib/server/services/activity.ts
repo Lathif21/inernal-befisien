@@ -40,7 +40,9 @@ export async function logActivity(db: DbOrTx, input: LogActivityInput) {
 			body: input.body ?? null,
 			meta: input.meta ?? null,
 			userId: input.userId ?? null,
-			...(input.occurredAt ? { occurredAt: input.occurredAt } : {})
+			// The app clock, not the database's now(): now() is frozen for a whole transaction, so several
+			// entries written together (stage change, then "Proyek dibuat") would tie and lose their order.
+			occurredAt: input.occurredAt ?? new Date()
 		})
 		.returning();
 	return row;
