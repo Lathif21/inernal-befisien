@@ -16,11 +16,15 @@
 	import KanbanCard from '#lib/components/kanban/KanbanCard.svelte';
 	import MoveMenu from '#lib/components/kanban/MoveMenu.svelte';
 	import NextActionBox from '#lib/components/kanban/NextActionBox.svelte';
+	import AddStepModal from '#lib/components/steps/AddStepModal.svelte';
+	import NextStepPrompt from '#lib/components/steps/NextStepPrompt.svelte';
+	import StepsPanel, { type PanelStep } from '#lib/components/steps/StepsPanel.svelte';
 	import Drawer from '#lib/components/layout/Drawer.svelte';
 	import Topbar from '#lib/components/layout/Topbar.svelte';
 	import {
 		DEAL_STAGE_META,
 		DEAL_STAGES,
+		NEXT_DEAL_STAGE,
 		OPEN_DEAL_STAGES,
 		PROJECT_STAGE_META,
 		SERVICE_TYPE_LABELS,
@@ -28,6 +32,7 @@
 	} from '#lib/constants.ts';
 	import { dateID, rupiah, rupiahShort } from '#lib/format.ts';
 	import { toLanes, type KanbanMove } from '#lib/kanban.ts';
+	import { stepFields, type StepValue } from '#lib/step-form.ts';
 	import { daysInStage } from '#lib/next-action.ts';
 	import { toast } from '#lib/toast.ts';
 	import type { PageProps } from './$types';
@@ -188,6 +193,72 @@
 		}
 	}
 
+	// ---------- steps (P1-07) ----------
+	/** Field errors stay in the form; otherwise refresh, then confirm */
+	async function stepResult(result: Awaited<ReturnType<typeof post>>) {
+		if (result.type === 'failure') {
+			const fields = result.data?.fields as Record<string, string> | undefined;
+			if (fields) return fields;
+			toast.error(String(result.data?.error ?? 'Langkah gagal disimpan.'));
+			return {};
+		}
+		if (result.type !== 'success') {
+			toast.error('Langkah gagal disimpan.');
+			return {};
+		}
+		await invalidateAll();
+		toast.success(String(result.data?.done ?? 'Tersimpan.'));
+	}
+
+	function saveStep(dealId: string, stepId: string | null, value: StepValue) {
+		return post(
+			stepId ? 'updateStep' : 'addStep',
+			stepId
+				? { id: stepId, ...stepFields(value) }
+				: { cardType: 'deal', cardId: dealId, ...stepFields(value) }
+		).then(stepResult);
+	}
+
+	// Ticking off the last open step asks for the next one (rule 4); the server enforces it too
+	let promptOpen = $state(false);
+	let promptStep = $state<PanelStep | null>(null);
+	let promptErrors = $state<Record<string, string>>({});
+
+	async function completeStep(step: PanelStep) {
+		if ((data.detail?.steps.open.length ?? 0) <= 1) {
+			promptStep = step;
+			promptErrors = {};
+			promptOpen = true;
+			return;
+		}
+		await stepResult(await post('completeStep', { id: step.id }));
+	}
+
+	async function submitNextStep(next: StepValue | null, moveToNextStage: boolean) {
+		if (!promptStep) return;
+		const errors = await stepResult(
+			await post('completeStep', {
+				id: promptStep.id,
+				withNext: next ? 'yes' : '',
+				moveToNextStage: moveToNextStage ? 'yes' : '',
+				...(next ? stepFields(next, 'next.') : {})
+			})
+		);
+		if (errors && Object.keys(errors).length) {
+			promptErrors = errors;
+			return;
+		}
+		promptOpen = false;
+		promptStep = null;
+	}
+
+	let addStepOpen = $state(false);
+	let addStepCard = $state<{ id: string; title: string } | null>(null);
+	function openAddStep(d: Deal) {
+		addStepCard = { id: d.id, title: d.title };
+		addStepOpen = true;
+	}
+
 	// ---------- drawers ----------
 	let dealDrawer: ReturnType<typeof DealFormDrawer> | undefined = $state();
 	// open while the URL has ?deal=…; closing it removes the param (closeDeal)
@@ -337,6 +408,7 @@
 						step={d.next ? { ...d.next, dueAt: new Date(d.next.dueAt) } : null}
 						{now}
 						allowNone={d.stage === 'won' || d.stage === 'lost'}
+						onadd={() => openAddStep(d)}
 					/>
 				{/snippet}
 				{#snippet menu()}
@@ -380,6 +452,27 @@
 	deal={lostDeal}
 	onsubmit={submitLost}
 	oncancel={() => pending?.settle(false)}
+/>
+
+<NextStepPrompt
+	bind:open={promptOpen}
+	completedTitle={promptStep?.title ?? ''}
+	cardTitle={data.detail?.title ?? ''}
+	canSkip={data.detail?.stage === 'won' || data.detail?.stage === 'lost'}
+	nextStageLabel={data.detail && NEXT_DEAL_STAGE[data.detail.stage]
+		? DEAL_STAGE_META[NEXT_DEAL_STAGE[data.detail.stage]!].label
+		: null}
+	assignees={data.owners}
+	errors={promptErrors}
+	onsubmit={submitNextStep}
+	oncancel={() => (promptStep = null)}
+/>
+
+<AddStepModal
+	bind:open={addStepOpen}
+	cardTitle={addStepCard?.title ?? ''}
+	assignees={data.owners}
+	onsubmit={(value) => saveStep(addStepCard!.id, null, value)}
 />
 
 <Drawer
@@ -437,12 +530,14 @@
 				{/if}
 			</dl>
 
-			<section class="flex flex-col gap-2">
-				<h3 class="text-small font-bold text-ink-2">Langkah berikutnya</h3>
-				<NextActionBox
-					step={d.next ? { ...d.next, dueAt: new Date(d.next.dueAt) } : null}
+			<section class="flex flex-col gap-2" aria-label="Langkah">
+				<h3 class="text-small font-bold text-ink-2">Langkah</h3>
+				<StepsPanel
+					steps={d.steps}
+					assignees={data.owners}
 					{now}
-					allowNone={d.stage === 'won' || d.stage === 'lost'}
+					oncomplete={completeStep}
+					onsave={(id, value) => saveStep(d.id, id, value)}
 				/>
 			</section>
 

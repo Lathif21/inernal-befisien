@@ -8,6 +8,7 @@ import { dealSchema, moveSchema, wonProjectSchema, type DealInput } from '#lib/s
 import type { FormMessage } from '#lib/schemas/message.ts';
 import { db } from '#lib/server/db/index.ts';
 import { requireUser } from '#lib/server/guards.ts';
+import { stepActions } from '#lib/server/step-actions.ts';
 import { listOwners } from '#lib/server/services/clients.ts';
 import {
 	createDeal,
@@ -78,6 +79,7 @@ function fieldErrors(issues: z.core.$ZodIssue[]) {
 }
 
 export const actions: Actions = {
+	...stepActions,
 	saveDeal: async ({ request, locals }) => {
 		const user = requireUser(locals);
 		const form = await superValidate<DealInput, FormMessage>(request, zod4(dealSchema));

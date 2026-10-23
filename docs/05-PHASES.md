@@ -122,7 +122,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - **Done when:** all stage moves persist with correct order after a refresh, won creates a linked project, and lost requires a reason.
 - _Note: pulled forward for the cards: `NextActionBox` + `lib/next-action.ts` (WIB late / today / upcoming with midnight tests; P1-07 keeps adding / completing steps and the "+ Tambah langkah" button) and `MoneyInput` (listed in P1-09). `services/actions.ts` has the read side (`getNextActions`)._
 
-### [ ] P1-07 Steps (actions) & next action on cards
+### [x] P1-07 Steps (actions) & next action on cards
 
 **Depends:** P1-06
 

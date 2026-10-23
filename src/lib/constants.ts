@@ -143,6 +143,18 @@ export const PROJECT_STAGE_META: Record<ProjectStage, StageStyle> = {
 /** Stages where a card may have no open step (docs/02-DATA-MODEL.md rule 4) */
 export const TERMINAL_STAGES: readonly (DealStage | ProjectStage)[] = ['won', 'lost', 'done'];
 
+/** Stage offered by "Pindahkan ke …" after a step is done. Negosiasi has none: winning goes
+    through the Deal ✓ prompt on the board. */
+export const NEXT_DEAL_STAGE: Record<DealStage, DealStage | null> = {
+	lead: 'contacted',
+	contacted: 'meeting',
+	meeting: 'proposal',
+	proposal: 'negotiation',
+	negotiation: null,
+	won: null,
+	lost: null
+};
+
 // Chip labels from docs/02-DATA-MODEL.md (they match the solutions on befisien.com)
 export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 	ai_agent: 'AI Agent',

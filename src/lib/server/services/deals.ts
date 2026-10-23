@@ -23,7 +23,7 @@ import { wibLocalToDate } from '../../format';
 import type { DealInput, MoveInput, WonProjectInput } from '../../schemas/deal';
 import type { DbOrTx, Tx } from '../db/client';
 import { action, activity, client, deal, project, strategyPlan, user } from '../db/schema/index';
-import { getNextActions } from './actions';
+import { getNextActions, listCardSteps } from './actions';
 import { logActivity } from './activity';
 import { ServiceError } from './errors';
 
@@ -99,7 +99,7 @@ export async function getDealDetail(db: DbOrTx, id: string) {
 		.where(eq(deal.id, id));
 	if (!row) return null;
 
-	const [linked, next, timeline] = await Promise.all([
+	const [linked, next, timeline, steps] = await Promise.all([
 		db
 			.select({ id: project.id, name: project.name, stage: project.stage })
 			.from(project)
@@ -117,9 +117,10 @@ export async function getDealDetail(db: DbOrTx, id: string) {
 			.leftJoin(user, eq(user.id, activity.userId))
 			.where(eq(activity.dealId, id))
 			.orderBy(desc(activity.occurredAt), desc(activity.createdAt))
-			.limit(30)
+			.limit(30),
+		listCardSteps(db, { dealId: id })
 	]);
-	return { ...row, project: linked[0] ?? null, next: next.get(id) ?? null, timeline };
+	return { ...row, project: linked[0] ?? null, next: next.get(id) ?? null, timeline, steps };
 }
 
 export type DealDetail = NonNullable<Awaited<ReturnType<typeof getDealDetail>>>;
