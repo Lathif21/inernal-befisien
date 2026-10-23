@@ -84,6 +84,10 @@ export type TxnType = (typeof TXN_TYPES)[number];
 export const TXN_STATUSES = ['planned', 'paid', 'cancelled'] as const;
 export type TxnStatus = (typeof TXN_STATUSES)[number];
 
+/** Invoices (P2-04): draft → sent → partial / paid; overdue is set by a daily job; void cancels */
+export const INVOICE_STATUSES = ['draft', 'sent', 'partial', 'paid', 'overdue', 'void'] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+
 export const PAYMENT_METHODS = ['transfer', 'cash', 'card', 'ewallet', 'other'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
@@ -249,6 +253,15 @@ export const TXN_STATUS_LABELS: Record<TxnStatus, string> = {
 	paid: 'Sudah dibayar',
 	planned: 'Direncanakan',
 	cancelled: 'Dibatalkan'
+};
+
+export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+	draft: 'Draf',
+	sent: 'Terkirim',
+	partial: 'Dibayar sebagian',
+	paid: 'Lunas',
+	overdue: 'Jatuh tempo',
+	void: 'Dibatalkan'
 };
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {

@@ -43,6 +43,13 @@
       "when": 1792792711001,
       "tag": "0005_ai_suggestions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792796470305,
+      "tag": "0006_invoices",
+      "breakpoints": true
     }
   ]
 }

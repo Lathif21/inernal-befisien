@@ -9,6 +9,7 @@ import {
 	CLIENT_STATUSES,
 	DEAL_STAGES,
 	INDUSTRIES,
+	INVOICE_STATUSES,
 	PAYMENT_METHODS,
 	PLAN_STATUSES,
 	PROJECT_STAGES,
@@ -18,7 +19,6 @@ import {
 	USER_ROLES
 } from '../../../constants';
 
-// invoice_status (P2-04) comes later.
 export const userRole = pgEnum('user_role', USER_ROLES);
 export const clientStatus = pgEnum('client_status', CLIENT_STATUSES);
 export const clientSource = pgEnum('client_source', CLIENT_SOURCES);
@@ -33,3 +33,4 @@ export const txnStatus = pgEnum('txn_status', TXN_STATUSES);
 export const paymentMethod = pgEnum('payment_method', PAYMENT_METHODS);
 export const aiKind = pgEnum('ai_kind', AI_KINDS);
 export const aiStatus = pgEnum('ai_status', AI_STATUSES);
+export const invoiceStatus = pgEnum('invoice_status', INVOICE_STATUSES);

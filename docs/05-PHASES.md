@@ -249,10 +249,11 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - **Done when:** the daily run completes for all active clients, and unchanged clients are skipped (visible in the run log).
 - _Note: `ai-suggestions` (06:30) and `ai-expire-suggestions` (00:30) run on Trigger.dev prod (v20261023.3); every schedule, the digest included, has `window: '5m'` (the default 60-minute window could start the 06:30 run after the 07:30 digest). Staging check 24 Okt 2026: run 1 = 2 clients, 3 suggestions; run 2 = both skipped. `ai-suggest-now` was not built: "Minta saran AI" runs directly in the app (20-30 s, within Vercel's 60 s). Production model: `AI_MODEL=MiniMax-M3.1-Flash-Preview` (cheaper; set on Vercel and Trigger.dev)._
 
-### [ ] P2-04 Invoice schema + numbering
+### [x] P2-04 Invoice schema + numbering
 
 - `invoice`, `invoice_item`, `invoice_status`. Number generator `INV/BEF/{YYYY}/{MM}/{seq}` (sequence per month, safe under concurrency).
 - `client.npwp` shown on the invoice
+- _Note: migration 0006 adds `invoice`, `invoice_item`, `invoice_status`, `invoice_counter` (one row per month, claimed with one atomic upsert inside the invoice's transaction) and `transaction.invoice_id` for P2-07. The number is assigned when the invoice is created, from the issue month, zero-padded to 3 digits (`INV/BEF/2026/10/007`); invoices are voided, not deleted, so numbers have no gaps. Totals: `lib/invoice.ts` (BigInt on scaled integers; PPN / PPh 23 rate 0 = off), recomputed on the server. Verified: 10 concurrent creates got 10 consecutive numbers; a new month restarts at 001. `getInvoice` returns the client's NPWP (stored as digits; P2-06 formats it)._
 
 ### [ ] P2-05 Invoice editor & list
 
