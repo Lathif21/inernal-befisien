@@ -634,6 +634,11 @@ await db.transaction(async (tx) => {
 		const rows = await tx
 			.insert(category)
 			.values(CATEGORIES[type].map((name, i) => ({ type, name, sort: i })))
+			// migration 0003 already inserts the same list
+			.onConflictDoUpdate({
+				target: [category.type, category.name],
+				set: { sort: sql`excluded.sort` }
+			})
 			.returning();
 		for (const r of rows) cats.set(`${type}:${r.name}`, r.id);
 	}

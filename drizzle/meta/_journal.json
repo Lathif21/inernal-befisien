@@ -22,6 +22,13 @@
       "when": 1792653324681,
       "tag": "0002_crm_finance",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792748710531,
+      "tag": "0003_seed_categories",
+      "breakpoints": true
     }
   ]
 }
