@@ -321,7 +321,7 @@
 	</nav>
 
 	{#if data.tab === 'ringkasan'}
-		<div class="grid gap-6 lg:grid-cols-3">
+		<div class="grid gap-6 *:min-w-0 lg:grid-cols-3">
 			<div class="flex flex-col gap-6 lg:col-span-2">
 				<section class="flex flex-col gap-4 rounded-card bg-surface p-5">
 					<h2 class="text-section-title">Data klien</h2>
@@ -734,7 +734,7 @@
 			lockClient
 		/>
 	{:else}
-		<div class="grid gap-6 lg:grid-cols-3">
+		<div class="grid gap-6 *:min-w-0 lg:grid-cols-3">
 			<section
 				class="flex flex-col gap-4 rounded-card bg-surface p-5 lg:order-last"
 				aria-label="Catat aktivitas"

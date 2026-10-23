@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { daysBetween, isDay, rangeLabel, resolvePeriod } from './period';
+import {
+	bucketLabel,
+	bucketStart,
+	bucketStarts,
+	bucketTitle,
+	daysBetween,
+	isDay,
+	rangeLabel,
+	resolvePeriod
+} from './period';
 
 const today = '2026-10-22'; // Kamis
 const r = (params: Record<string, string>, defaultPeriod?: Parameters<typeof resolvePeriod>[1]) =>
@@ -105,5 +114,44 @@ describe('calendar helpers', () => {
 		expect(isDay('22-10-2026')).toBe(false);
 		expect(daysBetween('2026-10-01', '2026-10-31')).toBe(31);
 		expect(rangeLabel('2026-10-22', '2026-10-22')).toBe('22 Okt 2026');
+	});
+});
+
+describe('chart buckets', () => {
+	it('Bulanan: the last 6 months end with the selected one', () => {
+		const p = r({ period: 'month', from: '2026-10-01' });
+		const starts = bucketStarts(p.seriesFrom, p.to, p.bucket);
+		expect(starts).toEqual([
+			'2026-05-01',
+			'2026-06-01',
+			'2026-07-01',
+			'2026-08-01',
+			'2026-09-01',
+			'2026-10-01'
+		]);
+		expect(bucketLabel(starts[5], 'month')).toBe('Okt 2026');
+	});
+
+	it('Mingguan: 8 Monday-starting weeks; Harian: 14 days; Tahunan: 3 years', () => {
+		const w = r({ period: 'week', from: '2026-10-22' });
+		const weeks = bucketStarts(w.seriesFrom, w.to, w.bucket);
+		expect([weeks.length, weeks[0], weeks[7]]).toEqual([8, '2026-08-31', '2026-10-19']);
+		expect(bucketTitle(weeks[7], 'week')).toBe('19 – 25 Okt 2026');
+		const d = r({ period: 'day', from: '2026-10-22' });
+		expect(bucketStarts(d.seriesFrom, d.to, d.bucket)).toHaveLength(14);
+		const y = r({ period: 'year', from: '2026-10-22' });
+		expect(bucketStarts(y.seriesFrom, y.to, y.bucket)).toEqual([
+			'2024-01-01',
+			'2025-01-01',
+			'2026-01-01'
+		]);
+	});
+
+	it('Custom: buckets cover the range, weeks starting on the Monday before', () => {
+		const c = r({ period: 'custom', from: '2026-07-15', to: '2026-10-10' });
+		expect(c.bucket).toBe('week');
+		const starts = bucketStarts(c.seriesFrom, c.to, c.bucket);
+		expect([starts[0], starts.at(-1)]).toEqual(['2026-07-13', '2026-10-05']);
+		expect(bucketStart('2026-10-10', 'week')).toBe('2026-10-05');
 	});
 });

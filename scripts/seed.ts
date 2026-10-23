@@ -6,7 +6,7 @@ import { addDays, format } from 'date-fns';
 import { sql } from 'drizzle-orm';
 import { generateNKeysBetween } from 'fractional-indexing';
 import { parseArgs } from 'node:util';
-import { DEAL_STAGE_META } from '../src/lib/constants.ts';
+import { DEAL_STAGE_META, DEAL_STAGES } from '../src/lib/constants.ts';
 import { TZ } from '../src/lib/format.ts';
 import { createDb, type Tx } from '../src/lib/server/db/client.ts';
 import { logActivity } from '../src/lib/server/services/activity.ts';
@@ -666,10 +666,13 @@ await db.transaction(async (tx) => {
 		const keys = generateNKeysBetween(null, null, deals.length);
 		for (const [i, { key, client: ck, inStageDays, ...d }] of deals.entries()) {
 			const changed = at(-inStageDays, '10:00');
+			// Created about 10 days per stage earlier, so past periods have a pipeline too
+			const steps = d.stage === 'lost' ? 3 : DEAL_STAGES.indexOf(d.stage ?? 'lead');
 			const [row] = await tx
 				.insert(deal)
 				.values({
 					...d,
+					createdAt: at(-(inStageDays + 10 * steps), '09:00'),
 					clientId: clientIds.get(ck)!,
 					position: keys[i],
 					ownerId: owner.id,

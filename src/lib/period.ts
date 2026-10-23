@@ -189,6 +189,49 @@ export function resolvePeriod(
 	};
 }
 
+// ---------- chart buckets (Dashboard "View by Waktu") ----------
+
+/** First day of the bucket holding `day`; matches Postgres date_trunc (weeks start Monday) */
+export function bucketStart(day: string, bucket: Bucket) {
+	if (bucket === 'week') return weekStart(day);
+	if (bucket === 'month') return monthStart(day);
+	if (bucket === 'year') return `${day.slice(0, 4)}-01-01`;
+	return day;
+}
+
+/** Start day of every bucket from the one holding `from` to the one holding `to`, oldest first */
+export function bucketStarts(from: string, to: string, bucket: Bucket) {
+	const out: string[] = [];
+	let d = bucketStart(from, bucket);
+	while (d <= to) {
+		out.push(d);
+		d =
+			bucket === 'day'
+				? addDays(d, 1)
+				: bucket === 'week'
+					? addDays(d, 7)
+					: bucket === 'month'
+						? addMonths(d, 1)
+						: `${Number(d.slice(0, 4)) + 1}-01-01`;
+	}
+	return out;
+}
+
+/** Axis label: "22 Okt" (day / week start), "Okt 2026", "2026" */
+export function bucketLabel(start: string, bucket: Bucket) {
+	if (bucket === 'year') return start.slice(0, 4);
+	if (bucket === 'month') return `${MONTHS[Number(start.slice(5, 7)) - 1]} ${start.slice(0, 4)}`;
+	return fmt(start, false);
+}
+
+/** Tooltip / table label: "22 Okt 2026", "19 – 25 Okt 2026", "Okt 2026", "Tahun 2026" */
+export function bucketTitle(start: string, bucket: Bucket) {
+	if (bucket === 'year') return `Tahun ${start.slice(0, 4)}`;
+	if (bucket === 'month') return bucketLabel(start, bucket);
+	if (bucket === 'week') return rangeLabel(start, addDays(start, 6));
+	return fmt(start, true);
+}
+
 /** URL params for a period, keeping only what that period needs */
 export function periodParams(period: Period, from: string, to?: string): Record<string, string> {
 	return period === 'custom' ? { period, from, to: to ?? from } : { period, from };
