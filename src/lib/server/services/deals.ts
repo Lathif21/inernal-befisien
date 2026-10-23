@@ -1,23 +1,6 @@
 // Sales Pipeline: deals and their moves on the board. Relative imports only: shared with Trigger.dev.
 // Rules: docs/02-DATA-MODEL.md "Business rules" 1, 2, 3, 4b and "Ordering inside kanban columns".
-import {
-	and,
-	asc,
-	desc,
-	eq,
-	gte,
-	ilike,
-	inArray,
-	isNull,
-	max,
-	min,
-	ne,
-	notInArray,
-	or,
-	sql,
-	type SQL
-} from 'drizzle-orm';
-import { generateKeyBetween } from 'fractional-indexing';
+import { and, asc, desc, eq, gte, ilike, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { DEAL_STAGE_META, type DealStage, type ServiceType } from '../../constants';
 import { wibLocalToDate } from '../../format';
 import type { DealInput, MoveInput, WonProjectInput } from '../../schemas/deal';
@@ -25,6 +8,7 @@ import type { DbOrTx, Tx } from '../db/client';
 import { action, activity, client, deal, project, strategyPlan, user } from '../db/schema/index';
 import { getNextActions, listCardSteps } from './actions';
 import { logActivity } from './activity';
+import { positionBetween, topOf } from './board-position';
 import { ServiceError } from './errors';
 
 /** Won / lost cards stay on the board this long (collapsed columns) */
@@ -125,52 +109,9 @@ export async function getDealDetail(db: DbOrTx, id: string) {
 
 export type DealDetail = NonNullable<Awaited<ReturnType<typeof getDealDetail>>>;
 
-// ---------- ordering ----------
-
-/** Fractional key for a card placed between `beforeId` (above) and `afterId` (below) in `stage` */
-async function positionBetween(
-	tx: Tx,
-	stage: DealStage,
-	beforeId: string | null,
-	afterId: string | null,
-	movingId?: string
-) {
-	const ids = [beforeId, afterId].filter((v): v is string => !!v);
-	const neighbours = ids.length
-		? await tx
-				.select({ id: deal.id, stage: deal.stage, position: deal.position })
-				.from(deal)
-				.where(inArray(deal.id, ids))
-		: [];
-	const pos = (id: string | null) =>
-		id ? (neighbours.find((n) => n.id === id && n.stage === stage)?.position ?? undefined) : null;
-	const a = pos(beforeId);
-	const b = pos(afterId);
-
-	const bottom = async () => {
-		const [{ last }] = await tx
-			.select({ last: max(deal.position) })
-			.from(deal)
-			.where(and(eq(deal.stage, stage), movingId ? ne(deal.id, movingId) : undefined));
-		return generateKeyBetween(last ?? null, null);
-	};
-	// Unknown / stale neighbours (another person moved them meanwhile): append at the bottom
-	if (a === undefined || b === undefined || (a !== null && b !== null && a >= b)) return bottom();
-	if (a === null && b === null) return bottom();
-	return generateKeyBetween(a, b);
-}
-
-async function topOf(tx: Tx, stage: DealStage) {
-	const [{ first }] = await tx
-		.select({ first: min(deal.position) })
-		.from(deal)
-		.where(eq(deal.stage, stage));
-	return generateKeyBetween(null, first ?? null);
-}
-
 // ---------- create / edit ----------
 
-async function assertOwner(tx: Tx, ownerId: string) {
+export async function assertOwner(tx: Tx, ownerId: string) {
 	if (!ownerId) return;
 	const [o] = await tx.select({ id: user.id }).from(user).where(eq(user.id, ownerId));
 	if (!o) throw new ServiceError('Pemilik tidak ditemukan.', 'ownerId');
@@ -195,7 +136,7 @@ export async function createDeal(db: DbOrTx, input: DealInput, userId: string) {
 				title: input.title,
 				serviceType: (input.serviceType || null) as ServiceType | null,
 				stage,
-				position: await topOf(tx, stage),
+				position: await topOf(tx, deal, stage),
 				valueEstimate: input.valueEstimate,
 				probability: DEAL_STAGE_META[stage].probability,
 				expectedClose: input.expectedClose || null,
@@ -275,6 +216,7 @@ export async function moveDeal(
 
 		const position = await positionBetween(
 			tx,
+			deal,
 			to,
 			input.beforeId || null,
 			input.afterId || null,
@@ -357,10 +299,6 @@ export async function createProjectFromDeal(
 			.where(eq(project.dealId, source.id));
 		if (existing) throw new ServiceError('Deal ini sudah punya proyek.');
 
-		const [{ first }] = await tx
-			.select({ first: min(project.position) })
-			.from(project)
-			.where(eq(project.stage, 'onboarding'));
 		const ownerId = source.ownerId ?? userId;
 		const [created] = await tx
 			.insert(project)
@@ -370,7 +308,7 @@ export async function createProjectFromDeal(
 				name: input.projectName,
 				serviceType: source.serviceType,
 				stage: 'onboarding',
-				position: generateKeyBetween(null, first ?? null),
+				position: await topOf(tx, project, 'onboarding'),
 				contractValue: input.contractValue,
 				startDate: input.startDate,
 				ownerId

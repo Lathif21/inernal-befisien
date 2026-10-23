@@ -14,7 +14,13 @@
 	import NextStepPrompt from '#lib/components/steps/NextStepPrompt.svelte';
 	import PlanCard from '#lib/components/strategy/PlanCard.svelte';
 	import PlanFormDrawer from '#lib/components/strategy/PlanFormDrawer.svelte';
-	import { DEAL_STAGE_META, NEXT_DEAL_STAGE, TERMINAL_STAGES } from '#lib/constants.ts';
+	import {
+		DEAL_STAGE_META,
+		NEXT_DEAL_STAGE,
+		NEXT_PROJECT_STAGE,
+		PROJECT_STAGE_META,
+		TERMINAL_STAGES
+	} from '#lib/constants.ts';
 	import { dateID, dayKeyWib } from '#lib/format.ts';
 	import { nextActionState, nextActionWhen } from '#lib/next-action.ts';
 	import type { StrategyStep } from '#lib/server/services/plans.ts';
@@ -143,11 +149,14 @@
 		promptStep = null;
 	}
 
-	const promptNextStage = $derived(
-		promptStep?.dealStage && !promptStep.projectStage && NEXT_DEAL_STAGE[promptStep.dealStage]
-			? DEAL_STAGE_META[NEXT_DEAL_STAGE[promptStep.dealStage]!].label
-			: null
-	);
+	const promptNextStage = $derived.by(() => {
+		if (promptStep?.projectStage) {
+			const to = NEXT_PROJECT_STAGE[promptStep.projectStage];
+			return to ? PROJECT_STAGE_META[to].label : null;
+		}
+		const to = promptStep?.dealStage ? NEXT_DEAL_STAGE[promptStep.dealStage] : null;
+		return to ? DEAL_STAGE_META[to].label : null;
+	});
 
 	// ---------- plans ----------
 	let planDrawer: ReturnType<typeof PlanFormDrawer> | undefined = $state();

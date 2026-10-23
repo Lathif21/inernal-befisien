@@ -155,6 +155,15 @@ export const NEXT_DEAL_STAGE: Record<DealStage, DealStage | null> = {
 	lost: null
 };
 
+/** Project counterpart of NEXT_DEAL_STAGE. Selesai → Maintenance is a board move, not a step. */
+export const NEXT_PROJECT_STAGE: Record<ProjectStage, ProjectStage | null> = {
+	onboarding: 'in_progress',
+	in_progress: 'review',
+	review: 'done',
+	done: null,
+	maintenance: null
+};
+
 // Chip labels from docs/02-DATA-MODEL.md (they match the solutions on befisien.com)
 export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 	ai_agent: 'AI Agent',

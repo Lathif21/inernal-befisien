@@ -545,7 +545,10 @@
 				<section class="flex flex-col gap-2 rounded-kanban bg-success-bg p-4">
 					{#if d.project}
 						<p class="text-small font-bold text-success">Proyek</p>
-						<p class="font-bold">{d.project.name}</p>
+						<a
+							href={resolve(`/(app)/projects?project=${d.project.id}`)}
+							class="font-bold text-ink hover:text-accent-ink">{d.project.name}</a
+						>
 						<p class="text-small text-ink-2">Tahap {PROJECT_STAGE_META[d.project.stage].label}</p>
 					{:else}
 						<p class="text-small font-bold text-success">Deal menang, belum ada proyek.</p>

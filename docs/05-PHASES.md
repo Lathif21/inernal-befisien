@@ -153,13 +153,14 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - **Done when:** plans and steps can be fully managed, the filters work together, and ticking a step on Strategi updates the kanban card's next action.
 - _Note: a plan already follows its deal to the won project (`createProjectFromDeal`, P1-06). Saran AI is a placeholder section and "Minta saran AI" is disabled until P2-02._
 
-### [ ] P1-08 Project Delivery board
+### [x] P1-08 Project Delivery board
 
 **Depends:** P1-07
 
 - `/projects` reusing the Kanban component. `services/projects.ts` `moveProject`.
 - Card payment progress (paid income ÷ contract value). Project drawer.
 - **Done when:** projects move across stages and show the next action and payment progress.
+- _Note: projects are still only created from won deals (no "+ Proyek"); the drawer edits name, service, contract value, dates and owner. Selesai is collapsed and shows the last 30 days. Payment progress counts paid income, retainers included, so Maintenance projects can pass 100%._
 
 ### [ ] P1-09 Transactions & client finance
 

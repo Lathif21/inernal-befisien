@@ -3,13 +3,22 @@
 // the last open step of a deal / project that is not won, lost or done needs the next step in the
 // same call, so the card can never be left without one.
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from 'drizzle-orm';
-import { DEAL_STAGE_META, NEXT_DEAL_STAGE, TERMINAL_STAGES, type DealStage } from '../../constants';
+import {
+	DEAL_STAGE_META,
+	NEXT_DEAL_STAGE,
+	NEXT_PROJECT_STAGE,
+	PROJECT_STAGE_META,
+	TERMINAL_STAGES,
+	type DealStage,
+	type ProjectStage
+} from '../../constants';
 import { stepDueAt, type StepInput } from '../../schemas/step';
 import type { DbOrTx, Tx } from '../db/client';
 import { action, deal, project, user } from '../db/schema/index';
 import { logActivity } from './activity';
 import { moveDeal } from './deals';
 import { ServiceError } from './errors';
+import { moveProject } from './projects';
 
 export type NextAction = { id: string; title: string; dueAt: Date; allDay: boolean };
 
@@ -197,7 +206,7 @@ function refOf(row: { dealId: string | null; projectId: string | null }): CardRe
 export type CompleteOptions = {
 	/** The next step; required when this was the card's last open step and the card is active */
 	next?: StepInput | null;
-	/** "Pindahkan ke [next stage]" (deals; projects follow in P1-08) */
+	/** "Pindahkan ke [next stage]" (NEXT_DEAL_STAGE / NEXT_PROJECT_STAGE) */
 	moveToNextStage?: boolean;
 };
 
@@ -241,19 +250,26 @@ export async function completeAction(
 		if (opts.next) await addAction(tx, ref, opts.next, userId, { planId: current.planId });
 
 		if (opts.moveToNextStage) {
-			if (ctx.kind !== 'deal')
-				throw new ServiceError('Pindah tahap proyek belum tersedia di sini.');
-			const to = NEXT_DEAL_STAGE[ctx.stage as DealStage];
-			if (!to)
-				throw new ServiceError(
-					`Deal di tahap ${DEAL_STAGE_META[ctx.stage as DealStage].label} tidak punya tahap berikutnya di sini.`
+			if (ctx.kind === 'deal') {
+				const to = NEXT_DEAL_STAGE[ctx.stage as DealStage];
+				if (!to)
+					throw new ServiceError(
+						`Deal di tahap ${DEAL_STAGE_META[ctx.stage as DealStage].label} tidak punya tahap berikutnya di sini.`
+					);
+				await moveDeal(
+					tx,
+					{ id: ref.dealId!, to, beforeId: '', afterId: '', lostReason: '', createProject: '' },
+					null,
+					userId
 				);
-			await moveDeal(
-				tx,
-				{ id: ref.dealId!, to, beforeId: '', afterId: '', lostReason: '', createProject: '' },
-				null,
-				userId
-			);
+			} else {
+				const to = NEXT_PROJECT_STAGE[ctx.stage as ProjectStage];
+				if (!to)
+					throw new ServiceError(
+						`Proyek di tahap ${PROJECT_STAGE_META[ctx.stage as ProjectStage].label} tidak punya tahap berikutnya di sini.`
+					);
+				await moveProject(tx, { id: ref.projectId!, to, beforeId: '', afterId: '' }, userId);
+			}
 		}
 
 		const [{ open }] = await tx

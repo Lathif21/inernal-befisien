@@ -392,6 +392,18 @@ const PROJECTS: ProjectSeed[] = [
 		targetEndDate: day(-120),
 		finishedAt: at(-120, '16:00'),
 		inStageDays: 120
+	},
+	{
+		key: 'p5',
+		client: 'kopi',
+		name: 'Aplikasi kasir & stok outlet',
+		serviceType: 'dashboard_app',
+		stage: 'done',
+		contractValue: 42_000_000,
+		startDate: day(-75),
+		targetEndDate: day(-14),
+		finishedAt: at(-9, '15:00'),
+		inStageDays: 9
 	}
 ];
 
@@ -483,6 +495,19 @@ const TRANSACTIONS: TxnSeed[] = [
 		'transfer'
 	],
 	// p4 Bina — SIAKAD (60 jt) + retainer
+	// p5 Kopi — kasir (42 jt), handed over
+	['p5', 'income', 'paid', -74, 21_000_000, 'DP / Uang Muka', 'DP 50% aplikasi kasir', 'transfer'],
+	['p5', 'expense', 'paid', -60, 5_500_000, 'Freelancer', 'Freelancer mobile', 'transfer'],
+	[
+		'p5',
+		'income',
+		'paid',
+		-8,
+		21_000_000,
+		'Pelunasan',
+		'Pelunasan setelah serah terima',
+		'transfer'
+	],
 	['p4', 'income', 'paid', -298, 30_000_000, 'DP / Uang Muka', 'DP 50% SIAKAD', 'transfer'],
 	['p4', 'expense', 'paid', -280, 8_000_000, 'Freelancer', 'Freelancer backend', 'transfer'],
 	['p4', 'expense', 'paid', -200, 3_600_000, 'Server & Cloud', 'Server 12 bulan', 'transfer'],
