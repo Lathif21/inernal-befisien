@@ -255,10 +255,11 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - `client.npwp` shown on the invoice
 - _Note: migration 0006 adds `invoice`, `invoice_item`, `invoice_status`, `invoice_counter` (one row per month, claimed with one atomic upsert inside the invoice's transaction) and `transaction.invoice_id` for P2-07. The number is assigned when the invoice is created, from the issue month, zero-padded to 3 digits (`INV/BEF/2026/10/007`); invoices are voided, not deleted, so numbers have no gaps. Totals: `lib/invoice.ts` (BigInt on scaled integers; PPN / PPh 23 rate 0 = off), recomputed on the server. Verified: 10 concurrent creates got 10 consecutive numbers; a new month restarts at 001. `getInvoice` returns the client's NPWP (stored as digits; P2-06 formats it)._
 
-### [ ] P2-05 Invoice editor & list
+### [x] P2-05 Invoice editor & list
 
 - Items table, PPN 11% toggle, PPh 23 (2%) toggle, live totals computed again on the server, due date, notes
 - Status flow: draft → sent → partial / paid. Void.
+- _Note: `/invoices` (search on number / client, status chips with counts, 25 per page), `/invoices/new` (prefill with `?client=` / `?project=`; the project's contract value goes into item 1; due date = issue + 14 days) and `/invoices/[id]` share `InvoiceEditor` (Superforms `dataType: 'json'`; the client cannot change after creation). Only a draft can be edited; its issue date must stay in the month that gave it its number. "Tandai Terkirim" makes it read-only (draft → sent). "Batalkan invoice" voids it (refused once a payment is linked). Partial / paid come from payments in P2-07; "Unduh PDF" and "Catat Pembayaran" are disabled placeholders until P2-06 / P2-07. Every change goes on the client's timeline. Verified in the browser: live totals match a hand calculation (59.000.000 + PPN 6.490.000 = 65.490.000; less PPh 23 1.180.000 = 64.310.000 received) and the server's totals; no overflow at 390 px._
 
 ### [ ] P2-06 Invoice PDF
 

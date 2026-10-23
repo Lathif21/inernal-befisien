@@ -4,12 +4,19 @@
 import { eq, inArray, like } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { createDb, type Tx } from '../db/client';
-import { activity, client, invoice, invoiceCounter, user } from '../db/schema/index';
+import { activity, client, invoice, invoiceCounter, transaction, user } from '../db/schema/index';
 import { clientSchema } from '../../schemas/client';
 import { invoiceSchema } from '../../schemas/invoice';
 import { createClient } from './clients';
 import { ServiceError } from './errors';
-import { createInvoice, getInvoice } from './invoices';
+import {
+	createInvoice,
+	getInvoice,
+	listInvoices,
+	markInvoiceSent,
+	updateInvoice,
+	voidInvoice
+} from './invoices';
 
 try {
 	process.loadEnvFile();
@@ -106,6 +113,64 @@ describe.skipIf(!isDevDb)('invoices (dev database)', { timeout: 180_000 }, () =>
 			const c = await createClient(tx, clientSchema.parse({ name: 'ZZ Invoice Arsip' }), userId);
 			await tx.update(client).set({ archivedAt: new Date() }).where(eq(client.id, c.id));
 			await expect(createInvoice(tx, input(c.id), userId)).rejects.toThrow(ServiceError);
+		});
+	});
+
+	it('edits drafts only, keeps the issue month, sends, voids, and lists with status counts', async () => {
+		await inRollback(async (tx, userId) => {
+			const c = await createClient(tx, clientSchema.parse({ name: 'ZZ Invoice Alur' }), userId);
+			const draft = await createInvoice(tx, input(c.id), userId);
+			const edit = (fields: Record<string, unknown>) =>
+				updateInvoice(tx, input(c.id, { id: draft.id, ...fields }), userId);
+			const fieldOf = (p: Promise<unknown>) =>
+				p.then(
+					() => null,
+					(e) => (e instanceof ServiceError ? (e.field ?? e.message) : String(e))
+				);
+
+			// edit: items replaced, totals recomputed, PPN off
+			const edited = await edit({
+				ppnRate: 0,
+				items: [{ description: 'Lisensi tahunan', qty: 3, unitPrice: 1_500_000 }]
+			});
+			expect([edited.subtotal, edited.ppnAmount, edited.total, edited.pph23Amount]).toEqual([
+				4_500_000, 0, 4_500_000, 90_000
+			]);
+			expect((await getInvoice(tx, draft.id))!.items.map((i) => i.description)).toEqual([
+				'Lisensi tahunan'
+			]);
+			// the number belongs to the issue month
+			expect(await fieldOf(edit({ issueDate: '2099-02-01', dueDate: '2099-02-15' }))).toBe(
+				'issueDate'
+			);
+
+			// send: no more edits
+			const sent = await markInvoiceSent(tx, draft.id, userId);
+			expect([sent.status, sent.sentAt instanceof Date]).toEqual(['sent', true]);
+			expect(await fieldOf(edit({}))).toBe('Hanya invoice draf yang bisa diubah.');
+			expect(await fieldOf(markInvoiceSent(tx, draft.id, userId))).toBe(
+				'Invoice ini sudah dikirim.'
+			);
+
+			// void is refused once a payment exists
+			const paid = await createInvoice(tx, input(c.id), userId);
+			await tx.insert(transaction).values({
+				type: 'income',
+				amount: 1_000_000,
+				date: '2099-01-20',
+				clientId: c.id,
+				invoiceId: paid.id
+			});
+			expect(await fieldOf(voidInvoice(tx, paid.id, userId))).toMatch(/sudah punya pembayaran/);
+			expect((await voidInvoice(tx, draft.id, userId)).status).toBe('void');
+
+			const list = await listInvoices(tx, { clientId: c.id });
+			expect([list.total, list.counts]).toEqual([2, { void: 1, draft: 1 }]);
+			const onlyVoid = await listInvoices(tx, { clientId: c.id, status: 'void' });
+			expect(onlyVoid.rows.map((r) => r.number)).toEqual([draft.number]);
+			expect((await listInvoices(tx, { q: draft.number })).rows.map((r) => r.id)).toEqual([
+				draft.id
+			]);
 		});
 	});
 

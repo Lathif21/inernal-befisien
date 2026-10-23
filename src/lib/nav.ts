@@ -30,7 +30,7 @@ export const navItems: NavItem[] = [
 	{ label: 'Proyek', href: 'projects', icon: FolderKanban },
 	{ label: 'Klien', href: 'clients', icon: Users },
 	{ label: 'Keuangan', href: 'finance', icon: Wallet },
-	{ label: 'Invoice', href: 'invoices', icon: FileText, phase: 2 },
+	{ label: 'Invoice', href: 'invoices', icon: FileText },
 	{ label: 'Pengaturan', href: 'settings', icon: Settings, bottom: true }
 ];
 
