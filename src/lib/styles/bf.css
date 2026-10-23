@@ -497,7 +497,7 @@
 	font-weight: 600;
 	color: var(--color-ink-2);
 }
-.bf-pager button {
+.bf-pager :is(button, a) {
 	border: 1px solid var(--color-line);
 	background: var(--color-surface);
 	color: var(--color-ink);
@@ -509,16 +509,17 @@
 	justify-content: center;
 	gap: 6px;
 }
-.bf-pager button[aria-current='page'] {
+.bf-pager :is(button, a)[aria-current='page'] {
 	background: var(--color-navy);
 	border-color: var(--color-navy);
 	color: var(--color-on-accent);
 }
-.bf-pager button:disabled {
+.bf-pager button:disabled,
+.bf-pager a[aria-disabled='true'] {
 	color: var(--color-ink-disabled);
 	cursor: not-allowed;
 }
-.bf-pager--sm button {
+.bf-pager--sm :is(button, a) {
 	min-width: 32px;
 	height: 32px;
 	border-radius: var(--radius-sm);
@@ -529,7 +530,7 @@
 	border-radius: var(--radius-kanban);
 	padding: 10px 14px;
 }
-.bf-pager--md button {
+.bf-pager--md :is(button, a) {
 	min-width: 40px;
 	height: 40px;
 	border-radius: 10px;
@@ -648,7 +649,8 @@
 	color: var(--color-ink-2);
 }
 .bf-field input,
-.bf-field select {
+.bf-field select,
+.bf-field textarea {
 	font: inherit;
 	font-size: 14.5px;
 	font-weight: 600;
@@ -678,4 +680,40 @@
 	font-size: 13.5px;
 	color: var(--color-ink);
 	outline: none;
+}
+
+/* App additions (not in bundle.css) */
+.bf-pager a {
+	text-decoration: none;
+}
+.bf-pager a[aria-disabled='true'] {
+	pointer-events: none;
+}
+.bf-field textarea {
+	padding: 10px 14px;
+	min-height: 88px;
+	resize: vertical;
+	line-height: 1.5;
+}
+.bf-field :is(input, select, textarea)[aria-invalid='true'] {
+	border-color: var(--color-danger-fill);
+}
+.bf-field__error {
+	font-size: 12.5px;
+	font-weight: 700;
+	color: var(--color-danger);
+}
+.bf-field__hint {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--color-ink-3);
+}
+.bf-search:focus-within {
+	outline: 3px solid var(--color-accent);
+	outline-offset: 2px;
+}
+/* Absolutely positioned children (e.g. .sr-only header labels) escape an unpositioned scroll
+   container and widen the page on phones; keep them inside the wrapper. */
+.bf-table-wrap {
+	position: relative;
 }

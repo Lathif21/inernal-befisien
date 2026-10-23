@@ -15,6 +15,14 @@ SvelteKit 3 (Svelte 5 runes, TypeScript) · Neon Postgres (project `long-truth-5
 - **Origin / CSRF in production:** adapter-node 6 ignores `ORIGIN`. It derives the origin from the `Host` header and assumes https; behind Nginx set `PROTOCOL_HEADER=x-forwarded-proto`. Better Auth uses `BETTER_AUTH_URL`.
 - **Inputs:** use `defaultValue={…}` (not `value={…}`) for server-provided initial values, so text typed before hydration is kept.
 - **UI primitives:** build drawers, dialogs, menus, selects and popovers on `bits-ui`, styled with the `bf-*` recipes (`src/lib/styles/bf.css`) and theme classes. Toasts: `toast` from `#lib/toast.ts`.
+- **Form actions with `use:enhance`:** SvelteKit 3 navigates to the action URL after the result, which drops the current `?search`. Call `await update({ navigate: false })` in the callback on list pages. `goto` takes `{ replace, reset }` (no `keepFocus` / `noScroll`).
+- **Superforms 3:** `superValidate(request, zod4(schema))` with `zod4` from `sveltekit-superforms/adapters` (Zod 4). `valibot` is installed only because the adapters entry imports it. Pass `untrack(() => data.form)` to `superForm`. Its return values are stores (`$form`, `$errors`); that is fine.
+
+## Database notes
+
+- **Correlated subqueries:** Drizzle leaves columns unqualified when a query reads one table, so in `sql\`(select … from ${deal} where …)\``write every column as`"table"."column"`(see`col()`in`services/clients.ts`). Unqualified `"id"` silently resolves to the inner table.
+- **Neon from here is slow to connect (~2.5 s per new connection, US region).** The pool keeps idle connections 60 s and every client has an `error` listener (see `db/client.ts`); keep both, or a dropped connection crashes the process.
+- **DB tests:** `*.db.spec.ts` run against the Neon `dev` branch inside a rolled-back transaction and skip when no dev database is configured. Give them `{ timeout: 30_000 }`.
 
 ## Commands
 

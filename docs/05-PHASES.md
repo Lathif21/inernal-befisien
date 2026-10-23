@@ -85,7 +85,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - `services/activity.ts`: `logActivity(tx, …)`
 - **Done when:** the tests pass.
 
-### [ ] P1-03 Clients list + create/edit
+### [x] P1-03 Clients list + create/edit
 
 **Depends:** P1-02, P0-04
 
