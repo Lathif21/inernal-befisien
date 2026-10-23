@@ -74,6 +74,6 @@ npx trigger.dev@latest dev
 - Project stages: `onboarding → in_progress → review → done → maintenance`
 - Steps live in `action` (date + time, optional `plan_id`). A card's next action = its earliest open step. Every active card keeps at least one open step (enforced in services).
 - Strategy plans: `strategy_plan` (goal, target, steps). AI suggestions (`ai_suggestion`) are never applied without a user clicking accept.
-- Period filter: always use `lib/period.ts` (WIB, weeks start Monday). Deltas compare with the previous period of the same length.
+- Period filter: always use `resolvePeriod()` from `#lib/period.ts` in the load (URL `?period=month&from=…[&to=…]`, WIB, weeks start Monday) and the `PeriodFilter` component with an `href(changes)` built by the page with `resolve()`, so other filters survive. Defaults: Dashboard Bulanan, Strategi Mingguan, client transactions Tahunan. Deltas: `prevFrom`–`prevTo` (previous calendar month / year for Bulanan / Tahunan, otherwise the same number of days). Day columns compare with `from` / `to` strings; timestamptz columns with `fromInstant` / `toInstant` (end exclusive).
 - `won` → offer to create a project. `lost` → reason required.
 - Transaction `amount` is always positive. `type` gives the direction. Profit = paid income − paid expense.

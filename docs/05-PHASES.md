@@ -132,13 +132,14 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - "Langkah berikutnya?" popover when the last open step of a card is completed (skip only for won / lost / done), with an optional "Pindahkan ke [next stage]"
 - **Done when:** a card always shows its earliest open step, late and today states are correct around midnight WIB and for times earlier today (unit tests), and completing the last step asks for the next one.
 
-### [ ] P1-07b Shared period filter
+### [x] P1-07b Shared period filter
 
 **Depends:** P0-04
 
 - `PeriodFilter` component: Harian / Mingguan / Bulanan / Tahunan / Custom, prev/next, label, URL params
 - `lib/period.ts`: `resolvePeriod(params) → { from, to, prevFrom, prevTo, bucket }` in WIB, weeks starting Monday, plus unit tests
 - **Done when:** the same component and helper drive every page that has a period filter.
+- _Note: `PeriodFilter` + `lib/period.ts` are built and tested (demo at `/dev/period`, dev only). Strategi (P1-07c), Keuangan and the client finance tab (P1-09) and the Dashboard (P1-10) must use them, with defaults Mingguan / Tahunan (client tab) / Bulanan._
 
 ### [ ] P1-07c Strategi screen
 
