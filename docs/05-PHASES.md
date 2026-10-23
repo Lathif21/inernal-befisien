@@ -141,7 +141,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - **Done when:** the same component and helper drive every page that has a period filter.
 - _Note: `PeriodFilter` + `lib/period.ts` are built and tested (demo at `/dev/period`, dev only). Strategi (P1-07c), Keuangan and the client finance tab (P1-09) and the Dashboard (P1-10) must use them, with defaults Mingguan / Tahunan (client tab) / Bulanan._
 
-### [ ] P1-07c Strategi screen
+### [x] P1-07c Strategi screen
 
 **Depends:** P1-07, P1-07b
 
@@ -151,6 +151,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - Leave a placeholder slot for **Saran AI** (filled in P2-02)
 - Sidebar badge = late + due today for the current user
 - **Done when:** plans and steps can be fully managed, the filters work together, and ticking a step on Strategi updates the kanban card's next action.
+- _Note: a plan already follows its deal to the won project (`createProjectFromDeal`, P1-06). Saran AI is a placeholder section and "Minta saran AI" is disabled until P2-02._
 
 ### [ ] P1-08 Project Delivery board
 

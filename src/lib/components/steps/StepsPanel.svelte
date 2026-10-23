@@ -122,7 +122,7 @@
 								</button>
 							{/if}
 							<div class="min-w-0 flex-1">
-								<p class="font-bold break-words">
+								<p class="font-bold wrap-break-word">
 									{s.title}
 									{#if i === 0}<span class="bf-chip ml-1 align-middle">Berikutnya</span>{/if}
 								</p>

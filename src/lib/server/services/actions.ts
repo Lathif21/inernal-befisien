@@ -2,7 +2,7 @@
 // Rule (docs/02-DATA-MODEL.md, rule 4): every active card keeps at least one open step. Completing
 // the last open step of a deal / project that is not won, lost or done needs the next step in the
 // same call, so the card can never be left without one.
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from 'drizzle-orm';
 import { DEAL_STAGE_META, NEXT_DEAL_STAGE, TERMINAL_STAGES, type DealStage } from '../../constants';
 import { stepDueAt, type StepInput } from '../../schemas/step';
 import type { DbOrTx, Tx } from '../db/client';
@@ -124,13 +124,22 @@ export async function addAction(
 	return db.transaction(async (tx) => {
 		const ctx = await cardContext(tx, ref);
 		await assertAssignee(tx, input.assigneeId);
+		// A plan step without an explicit position goes to the end of its plan
+		let sort = extra.sort ?? 0;
+		if (extra.planId && extra.sort === undefined) {
+			const [{ last }] = await tx
+				.select({ last: max(action.sort) })
+				.from(action)
+				.where(eq(action.planId, extra.planId));
+			sort = last === null ? 0 : last + 1;
+		}
 		const [row] = await tx
 			.insert(action)
 			.values({
 				dealId: ref.dealId ?? null,
 				projectId: ref.projectId ?? null,
 				planId: extra.planId ?? null,
-				sort: extra.sort ?? 0,
+				sort,
 				title: input.title,
 				dueAt: stepDueAt(input),
 				allDay: input.allDay,
