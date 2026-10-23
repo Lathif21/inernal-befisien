@@ -1,6 +1,6 @@
 // Better Auth tables, generated with `npx auth generate` (better-auth 1.7) and adapted:
 // timestamps are timestamptz, `role` uses the user_role enum.
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import { pgTable, text, timestamp, boolean, index } from 'drizzle-orm/pg-core';
 import { userRole } from './enums';
 
@@ -19,7 +19,17 @@ export const user = pgTable('user', {
 		.notNull(),
 	role: userRole('role').default('admin').notNull(),
 	phone: text('phone'),
-	digestEnabled: boolean('digest_enabled').default(true).notNull()
+	digestEnabled: boolean('digest_enabled').default(true).notNull(),
+	/** 'telegram' | 'email' (docs/02-DATA-MODEL.md) */
+	digestChannels: text('digest_channels')
+		.array()
+		.default(sql`'{telegram,email}'::text[]`)
+		.notNull(),
+	/** Set when the user sends /start <code> to the bot */
+	telegramChatId: text('telegram_chat_id'),
+	/** One-time code of "Hubungkan Telegram", valid for 15 minutes */
+	telegramLinkCode: text('telegram_link_code').unique(),
+	telegramLinkExpiresAt: tstz('telegram_link_expires_at')
 });
 
 export const session = pgTable(

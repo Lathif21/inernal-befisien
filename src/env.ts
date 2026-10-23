@@ -16,5 +16,25 @@ export const variables = defineEnvVars({
 	BETTER_AUTH_SECRET: {
 		description: 'Signs session tokens. At least 32 random characters in production.',
 		schema: optional
+	},
+	TELEGRAM_BOT_TOKEN: {
+		description: 'Bot token from @BotFather (daily digest and "Hubungkan Telegram")',
+		schema: optional
+	},
+	TELEGRAM_BOT_USERNAME: {
+		description: 'Bot username without @, for t.me/<bot>?start=<code> links',
+		schema: optional
+	},
+	TELEGRAM_WEBHOOK_SECRET: {
+		description: 'Telegram sends it in X-Telegram-Bot-Api-Secret-Token; /api/telegram checks it',
+		schema: optional
+	},
+	RESEND_API_KEY: {
+		description: 'Resend key for the digest email (send-only is enough)',
+		schema: optional
+	},
+	MAIL_FROM: {
+		description: 'Sender of app email, e.g. "Befisien CRM <info@befisien.com>"',
+		schema: optional
 	}
 });
