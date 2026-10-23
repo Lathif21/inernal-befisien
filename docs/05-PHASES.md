@@ -226,13 +226,14 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 
 ## Phase 2 — AI suggestions, invoices & full finance
 
-> AI suggestions in Phase 2 is a proposal waiting for confirmation (see README). AI provider and model are still open.
+> AI suggestions confirmed (24 Okt 2026): provider Sumopod, default model `claude-opus-5-5`.
 
-### [ ] P2-01 AI suggestion schema & service
+### [x] P2-01 AI suggestion schema & service
 
 - `ai_suggestion` table and enums. `services/aiSuggestions.ts`: build the client context, call the LLM with structured JSON output, validate with Zod, store, `input_hash` skip, accept → action or plan (`from_suggestion_id`), dismiss, expire.
 - Prompt file `src/lib/server/ai/prompts/suggest.md` (Bahasa Indonesia, max 3, concrete and dated, no invented facts)
 - **Done when:** on the seed data, the service returns valid suggestions for each active client, and accepting one creates a step with the right date and time.
+- _Note: provider is Sumopod (OpenAI-compatible gateway, `SUMOPOD_API_KEY`), model `AI_MODEL` (default `claude-opus-5-5`), JSON-schema structured output + Zod. The prompt lives in `src/lib/server/ai/prompts/suggest.ts` (a .ts file so both the app and the Trigger.dev bundle include it). The skip hash covers stable facts only and is stored on `client.ai_input_hash`; new suggestions replace a client's older open ones. Seed run (24 Okt 2026): 7 active clients, 13 suggestions, ~16.6k in / 6k out tokens; a second run skipped 6 unchanged clients. `npm run ai:suggest [-- --force] [-- --accept-one]` runs it by hand._
 
 ### [ ] P2-02 Saran AI on Strategi & client page
 

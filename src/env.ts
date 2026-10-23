@@ -33,6 +33,19 @@ export const variables = defineEnvVars({
 		description: 'Resend key for the digest email (send-only is enough)',
 		schema: optional
 	},
+	SUMOPOD_API_KEY: {
+		description:
+			'Sumopod key for AI suggestions (OpenAI-compatible gateway, https://ai.sumopod.com)',
+		schema: optional
+	},
+	AI_MODEL: {
+		description: 'Model for AI suggestions; default claude-opus-5-5',
+		schema: optional
+	},
+	AI_BASE_URL: {
+		description: 'OpenAI-compatible base URL; default https://ai.sumopod.com/v1',
+		schema: optional
+	},
 	MAIL_FROM: {
 		description: 'Sender of app email, e.g. "Befisien CRM <info@befisien.com>"',
 		schema: optional

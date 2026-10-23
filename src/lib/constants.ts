@@ -72,6 +72,12 @@ export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 export const PLAN_STATUSES = ['active', 'achieved', 'dropped'] as const;
 export type PlanStatus = (typeof PLAN_STATUSES)[number];
 
+/** AI suggestions (P2-01): what kind of insight, and where it is in its life */
+export const AI_KINDS = ['risk', 'opportunity', 'pipeline'] as const;
+export type AiKind = (typeof AI_KINDS)[number];
+export const AI_STATUSES = ['new', 'accepted', 'dismissed', 'expired'] as const;
+export type AiStatus = (typeof AI_STATUSES)[number];
+
 export const TXN_TYPES = ['income', 'expense'] as const;
 export type TxnType = (typeof TXN_TYPES)[number];
 
@@ -221,6 +227,12 @@ export const MANUAL_ACTIVITY_TYPES = [
 	'whatsapp',
 	'email'
 ] as const satisfies readonly ActivityType[];
+
+export const AI_KIND_LABELS: Record<AiKind, string> = {
+	risk: 'Risiko',
+	opportunity: 'Peluang',
+	pipeline: 'Pipeline'
+};
 
 export const PLAN_STATUS_LABELS: Record<PlanStatus, string> = {
 	active: 'Aktif',

@@ -19,7 +19,8 @@
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
 		"user:create": "tsx scripts/create-user.ts",
-		"db:seed": "tsx scripts/seed.ts"
+		"db:seed": "tsx scripts/seed.ts",
+		"ai:suggest": "tsx scripts/ai-suggest.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

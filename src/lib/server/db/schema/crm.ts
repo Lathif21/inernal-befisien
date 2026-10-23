@@ -12,11 +12,14 @@ import {
 	text,
 	timestamp,
 	uniqueIndex,
-	uuid
+	uuid,
+	type AnyPgColumn
 } from 'drizzle-orm/pg-core';
 import { user } from './auth';
 import {
 	activityType,
+	aiKind,
+	aiStatus,
 	clientSource,
 	clientStatus,
 	dealStage,
@@ -54,6 +57,9 @@ export const client = pgTable(
 		notes: text('notes'),
 		ownerId: userRef('owner_id'),
 		archivedAt: tstz('archived_at'),
+		/** What the AI last looked at (P2-01): a run with the same facts is skipped */
+		aiInputHash: text('ai_input_hash'),
+		aiCheckedAt: tstz('ai_checked_at'),
 		...timestamps
 	},
 	(t) => [
@@ -171,8 +177,9 @@ export const strategyPlan = pgTable(
 		targetDate: date('target_date'),
 		status: planStatus('status').notNull().default('active'),
 		ownerId: userRef('owner_id'),
-		/** FK to ai_suggestion is added in P2-01 */
-		fromSuggestionId: uuid('from_suggestion_id'),
+		fromSuggestionId: uuid('from_suggestion_id').references((): AnyPgColumn => aiSuggestion.id, {
+			onDelete: 'set null'
+		}),
 		notes: text('notes'),
 		...timestamps
 	},
@@ -200,8 +207,9 @@ export const action = pgTable(
 		assigneeId: userRef('assignee_id'),
 		doneAt: tstz('done_at'),
 		doneBy: userRef('done_by'),
-		/** FK to ai_suggestion is added in P2-01 */
-		fromSuggestionId: uuid('from_suggestion_id'),
+		fromSuggestionId: uuid('from_suggestion_id').references((): AnyPgColumn => aiSuggestion.id, {
+			onDelete: 'set null'
+		}),
 		...timestamps
 	},
 	(t) => [
@@ -238,6 +246,34 @@ export const activity = pgTable(
 		...timestamps
 	},
 	(t) => [index('activity_client_occurred_idx').on(t.clientId, t.occurredAt.desc())]
+);
+
+/** AI suggestion (P2-01, docs/02-DATA-MODEL.md). Only ever becomes a step or plan when a person accepts it. */
+export const aiSuggestion = pgTable(
+	'ai_suggestion',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		clientId: uuid('client_id')
+			.notNull()
+			.references(() => client.id, { onDelete: 'cascade' }),
+		dealId: uuid('deal_id').references(() => deal.id, { onDelete: 'set null' }),
+		projectId: uuid('project_id').references(() => project.id, { onDelete: 'set null' }),
+		planId: uuid('plan_id').references(() => strategyPlan.id, { onDelete: 'set null' }),
+		kind: aiKind('kind').notNull(),
+		insight: text('insight').notNull(),
+		proposedAction: text('proposed_action').notNull(),
+		proposedDueAt: tstz('proposed_due_at'),
+		status: aiStatus('status').notNull().default('new'),
+		model: text('model').notNull(),
+		inputHash: text('input_hash').notNull(),
+		decidedBy: userRef('decided_by'),
+		decidedAt: tstz('decided_at'),
+		...timestamps
+	},
+	(t) => [
+		index('ai_suggestion_status_created_idx').on(t.status, t.createdAt.desc()),
+		index('ai_suggestion_client_idx').on(t.clientId)
+	]
 );
 
 export const clientRelations = relations(client, ({ one, many }) => ({
