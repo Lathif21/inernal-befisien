@@ -102,7 +102,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - Activity composer (type + text) and timeline
 - **Done when:** contacts and notes work, and the timeline shows newest first.
 
-### [ ] P1-05 Generic Kanban component
+### [x] P1-05 Generic Kanban component
 
 **Depends:** P0-04
 

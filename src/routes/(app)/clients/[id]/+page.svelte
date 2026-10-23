@@ -680,7 +680,7 @@
 					type="checkbox"
 					name="isPrimary"
 					bind:checked={$cForm.isPrimary}
-					class="size-5 accent-(--color-accent)"
+					class="size-5 accent-accent"
 				/>
 				Kontak utama
 			</label>
