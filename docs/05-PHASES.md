@@ -182,13 +182,14 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - **Done when:** every number follows the period, the Klien view total equals the Waktu view total for the same period, the numbers match `/finance`, and the page loads in under 1 second on production.
 - _Note: "Nilai pipeline aktif" for a period = deals open at some point in it (created before it ended, and still open or won / lost after it started), valued at today's estimate. The chart is a plain-SVG `GroupedBarChart` (no LayerChart: one chart type, exact mark specs, keyboard tooltips and a table view). Production load measured at ~370 ms median from Indonesia (staging data is small)._
 
-### [ ] P1-11 CSV import
+### [x] P1-11 CSV import
 
 **Depends:** P1-04
 
 - Settings → Import Data: upload `import-template.csv` → parse (`papaparse`) → preview with row errors → import in one DB transaction
 - Creates clients and contacts, and optionally an initial deal (stage + next action) per row
 - **Done when:** the sample file imports, invalid rows are listed and skipped, and nothing is half-imported on error.
+- _Note: the app serves its own template (`/settings/import/template.csv`, header + one valid example row); `docs/import-template.csv` still holds `[…]` placeholders, which the preview flags. Re-importing a file does not duplicate contacts (same name) or deals (same title) of a client. Notes of an existing client go to its timeline instead of overwriting. Won rows create the project (first step = next_action or "Kick-off meeting" +3 days); lost rows get the reason "Lainnya: diimpor sebagai deal batal". A date-only next_action_due becomes 09:00 WIB. Settings shows Import Data; Pengguna / Kategori / Telegram are marked "Segera" until P1-12 / P1-13._
 
 ### [ ] P1-12 Telegram bot + daily digest with Trigger.dev
 
