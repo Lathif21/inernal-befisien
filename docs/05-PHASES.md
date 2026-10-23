@@ -219,6 +219,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - Mobile pass on every page
 - Playwright smoke tests: login, create client, move deal to won → project, add transaction, dashboard totals
 - **Done when:** the Phase 1 acceptance criteria in `01-PRD.md` §8 all pass on production, and the notes are imported.
+- _Status (24 Okt 2026): error pages, navigation progress bar, empty-state pass, mobile pass (every page at 390px, staging and dev) and `npm run test:e2e` (5 smoke flows, run on dev) are done. PRD §8 on staging: sign-up refused (400) and both admins exist; boards, won → project, lost reason, steps, Strategi, dashboard (Waktu = Klien = Keuangan for 6 periods), client finance filters, CSV import and phone layout were verified per task. Open: the 07:30 digest arriving on Telegram (nama@ not linked yet), importing the real notes, and production on the VPS (P0-05)._
 
 ---
 

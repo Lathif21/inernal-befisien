@@ -45,6 +45,7 @@ npm run dev            # app
 npm run check          # svelte-check + tsc
 npm run lint
 npm run test           # vitest
+npm run test:e2e       # Playwright smoke tests (local dev server on Neon dev; they create data)
 npm run db:generate    # drizzle-kit generate (after schema changes)
 npm run db:migrate     # apply migrations (DATABASE_URL_UNPOOLED)
 npm run user:create -- --email … --name "…" [--password …] [--role admin]
