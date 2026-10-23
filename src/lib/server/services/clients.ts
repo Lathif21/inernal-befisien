@@ -7,6 +7,7 @@ import type { ClientInput } from '../../schemas/client';
 import type { DbOrTx } from '../db/client';
 import { client, contact, deal, project, transaction, user } from '../db/schema/index';
 import { logActivity } from './activity';
+import { paidIncome } from './projects';
 import { ServiceError } from './errors';
 
 export const CLIENT_PAGE_SIZE = 25;
@@ -284,7 +285,8 @@ export function listClientProjects(db: DbOrTx, clientId: string) {
 			serviceType: project.serviceType,
 			contractValue: project.contractValue,
 			startDate: project.startDate,
-			targetEndDate: project.targetEndDate
+			targetEndDate: project.targetEndDate,
+			paid: paidIncome
 		})
 		.from(project)
 		.where(eq(project.clientId, clientId))

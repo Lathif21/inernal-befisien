@@ -162,7 +162,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - **Done when:** projects move across stages and show the next action and payment progress.
 - _Note: projects are still only created from won deals (no "+ Proyek"); the drawer edits name, service, contract value, dates and owner. Selesai is collapsed and shows the last 30 days. Payment progress counts paid income, retainers included, so Maintenance projects can pass 100%._
 
-### [ ] P1-09 Transactions & client finance
+### [x] P1-09 Transactions & client finance
 
 **Depends:** P1-02
 
@@ -171,6 +171,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - `/finance` page: period filter, KPI tiles, filterable table
 - Client detail **Keuangan** tab and finance summary strip, with **search**, **period filter** (default Tahunan) and **Semua / Masuk / Keluar** working together, "Menampilkan x dari y transaksi", and an empty-result message
 - **Done when:** totals on the client page, the project card and `/finance` match a hand-calculated check on the seed data.
+- _Note: the client finance strip is all time (paid only, plus planned income); the Keuangan tab table follows its own filters. `/finance` KPI tiles follow the period and the client filter, not search / type / category / status. The client page's Ringkasan also shows each active project (payment progress, next action)._
 
 ### [ ] P1-10 Dashboard
 

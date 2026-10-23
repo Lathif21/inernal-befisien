@@ -13,7 +13,7 @@ import { assertOwner, RECENT_CLOSED_DAYS, type BoardFilters } from './deals';
 import { ServiceError } from './errors';
 
 /** Paid income of the project (payment progress = paid ÷ contract value). Totals are never stored. */
-const paidIncome = sql<number>`coalesce((
+export const paidIncome = sql<number>`coalesce((
 	select sum("transaction"."amount") from ${transaction}
 	where "transaction"."project_id" = "project"."id"
 		and "transaction"."type" = 'income' and "transaction"."status" = 'paid'

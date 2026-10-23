@@ -16,6 +16,8 @@
 		confirmLabel: string;
 		/** `dark` for archive-like actions, `danger` for deletes */
 		tone?: 'dark' | 'danger';
+		/** After the action succeeded (the page data is already fresh) */
+		onsuccess?: () => void;
 	};
 
 	let {
@@ -25,7 +27,8 @@
 		action,
 		fields,
 		confirmLabel,
-		tone = 'dark'
+		tone = 'dark',
+		onsuccess
 	}: Props = $props();
 	let pending = $state(false);
 </script>
@@ -47,9 +50,10 @@
 				class="flex justify-end gap-2"
 				use:enhance={refreshThenToast({
 					start: () => (pending = true),
-					end: () => {
+					end: (ok) => {
 						pending = false;
 						open = false;
+						if (ok) onsuccess?.();
 					}
 				})}
 			>

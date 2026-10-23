@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { enhance as kitEnhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import { superForm } from 'sveltekit-superforms';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Globe from '@lucide/svelte/icons/globe';
@@ -16,6 +18,16 @@
 	import Avatar from '#lib/components/Avatar.svelte';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import Pager from '#lib/components/Pager.svelte';
+	import PeriodFilter from '#lib/components/PeriodFilter.svelte';
+	import StatTile from '#lib/components/StatTile.svelte';
+	import TransactionFormDrawer from '#lib/components/finance/TransactionFormDrawer.svelte';
+	import TransactionTable from '#lib/components/finance/TransactionTable.svelte';
+	import NextActionBox from '#lib/components/kanban/NextActionBox.svelte';
+	import Money from '#lib/components/money/Money.svelte';
+	import PaymentProgress from '#lib/components/projects/PaymentProgress.svelte';
+	import ArrowDownLeft from '@lucide/svelte/icons/arrow-down-left';
+	import ArrowUpRight from '@lucide/svelte/icons/arrow-up-right';
+	import Search from '@lucide/svelte/icons/search';
 	import ClientFormDrawer from '#lib/components/clients/ClientFormDrawer.svelte';
 	import Timeline from '#lib/components/clients/Timeline.svelte';
 	import Field from '#lib/components/form/Field.svelte';
@@ -32,7 +44,7 @@
 		SERVICE_TYPE_LABELS,
 		type ClientStatus
 	} from '#lib/constants.ts';
-	import { dateID, dateToWibLocal, phoneDisplay, rupiah } from '#lib/format.ts';
+	import { dateID, dateToWibLocal, phoneDisplay, rupiah, rupiahShort } from '#lib/format.ts';
 	import type { ContactRow } from '#lib/server/services/contacts.ts';
 	import { refreshThenToast } from '#lib/enhance.ts';
 	import { toast } from '#lib/toast.ts';
@@ -48,6 +60,7 @@
 		{ key: 'ringkasan', label: 'Ringkasan' },
 		{ key: 'kontak', label: 'Kontak' },
 		{ key: 'deal', label: 'Deal & Proyek' },
+		{ key: 'keuangan', label: 'Keuangan' },
 		{ key: 'aktivitas', label: 'Aktivitas' }
 	] as const;
 	const tabHref = (tab: string, page?: number) =>
@@ -136,6 +149,36 @@
 	);
 	// Latest allowed value for the back-dating picker (WIB)
 	const nowLocal = dateToWibLocal();
+
+	// ---------- Keuangan tab (search, Semua / Masuk / Keluar and the period live in the URL) ----------
+	function financeHref(changes: Record<string, string | undefined>) {
+		const merged = {
+			...Object.fromEntries(page.url.searchParams),
+			tab: 'keuangan',
+			page: undefined,
+			...changes
+		};
+		const qs = Object.entries(merged)
+			.filter(([, v]) => !!v)
+			.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v!)}`)
+			.join('&');
+		return resolve(`/(app)/clients/[id]?${qs}`, { id: c.id });
+	}
+	let txnQ = $state(page.url.searchParams.get('q') ?? '');
+	let txnTimer: ReturnType<typeof setTimeout> | undefined;
+	function searchTxn() {
+		clearTimeout(txnTimer);
+		txnTimer = setTimeout(
+			() => goto(financeHref({ q: txnQ || undefined }), { replace: true, reset: false }),
+			300
+		);
+	}
+	let txnDrawer: ReturnType<typeof TransactionFormDrawer> | undefined = $state();
+	let now = $state(new Date());
+	$effect(() => {
+		const t = setInterval(() => (now = new Date()), 60_000);
+		return () => clearInterval(t);
+	});
 
 	const openDeals = $derived(data.deals.filter((d) => d.stage !== 'won' && d.stage !== 'lost'));
 	const activeProjects = $derived(data.projects.filter((p) => p.stage !== 'done'));
@@ -240,6 +283,32 @@
 		</div>
 	</section>
 
+	<!-- Finance strip: all time, paid only; planned income separately (docs/03-SCREENS.md §7) -->
+	<section class="grid grid-cols-2 gap-4 lg:grid-cols-4" aria-label="Keuangan klien">
+		<StatTile
+			label="Total pemasukan"
+			value={rupiahShort(data.totals.income)}
+			note="Sudah dibayar"
+		/>
+		<StatTile
+			label="Total pengeluaran"
+			value={rupiahShort(data.totals.expense)}
+			note="Sudah dibayar"
+		/>
+		<StatTile
+			label="Laba"
+			value={rupiahShort(data.totals.profit)}
+			variant="dark"
+			note={data.totals.margin !== null ? `Margin ${data.totals.margin}%` : 'Belum ada pemasukan'}
+		/>
+		<StatTile
+			label="Pemasukan direncanakan"
+			value={rupiahShort(data.totals.plannedIncome)}
+			variant="planned"
+			note="{data.totals.plannedCount} transaksi direncanakan"
+		/>
+	</section>
+
 	<nav class="bf-seg w-fit max-w-full overflow-x-auto" aria-label="Bagian klien">
 		{#each TABS as t (t.key)}
 			<a
@@ -334,13 +403,37 @@
 				</section>
 			</div>
 
-			<section class="flex flex-col gap-3 rounded-card bg-surface p-5">
-				<div class="flex items-center justify-between gap-2">
-					<h2 class="text-section-title">Aktivitas terbaru</h2>
-					<a href={tabHref('aktivitas')} class="bf-btn bf-btn--ghost bf-btn--sm">Lihat semua</a>
-				</div>
-				<Timeline entries={data.activities.rows} />
-			</section>
+			<div class="flex flex-col gap-6">
+				{#each data.activeProjects as p (p.id)}
+					<section
+						class="flex flex-col gap-3 rounded-card bg-surface p-5"
+						aria-label="Proyek aktif {p.name}"
+					>
+						<div class="flex flex-wrap items-center gap-2">
+							<span class="text-small font-bold text-ink-3">Proyek aktif</span>
+							<span class={['bf-chip ml-auto', PROJECT_STAGE_META[p.stage].chip]}
+								>{PROJECT_STAGE_META[p.stage].label}</span
+							>
+						</div>
+						<a
+							href={resolve(`/(app)/projects?project=${p.id}`)}
+							class="text-section-title text-ink hover:text-accent-ink">{p.name}</a
+						>
+						<PaymentProgress paid={p.paid} contractValue={p.contractValue} />
+						<NextActionBox
+							step={p.next ? { ...p.next, dueAt: new Date(p.next.dueAt) } : null}
+							{now}
+						/>
+					</section>
+				{/each}
+				<section class="flex flex-col gap-3 rounded-card bg-surface p-5">
+					<div class="flex items-center justify-between gap-2">
+						<h2 class="text-section-title">Aktivitas terbaru</h2>
+						<a href={tabHref('aktivitas')} class="bf-btn bf-btn--ghost bf-btn--sm">Lihat semua</a>
+					</div>
+					<Timeline entries={data.activities.rows} />
+				</section>
+			</div>
 		</div>
 	{:else if data.tab === 'kontak'}
 		<section class="flex flex-col gap-4 rounded-card bg-surface p-5" aria-label="Kontak">
@@ -538,6 +631,108 @@
 				</div>
 			{/if}
 		</section>
+	{:else if data.tab === 'keuangan' && data.finance}
+		{@const f = data.finance}
+		<section class="flex min-w-0 flex-col gap-4 rounded-card bg-surface p-5" aria-label="Transaksi">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<h2 class="text-section-title">Transaksi</h2>
+				{#if !archived}
+					<div class="flex flex-wrap gap-2">
+						<button
+							type="button"
+							class="bf-btn bf-btn--secondary"
+							onclick={() => txnDrawer?.openCreate({ type: 'income', clientId: c.id })}
+						>
+							<ArrowDownLeft size={17} strokeWidth={2} />
+							Pemasukan
+						</button>
+						<button
+							type="button"
+							class="bf-btn bf-btn--secondary"
+							onclick={() => txnDrawer?.openCreate({ type: 'expense', clientId: c.id })}
+						>
+							<ArrowUpRight size={17} strokeWidth={2} />
+							Pengeluaran
+						</button>
+					</div>
+				{/if}
+			</div>
+
+			<!-- DataTable filter row: search, Semua / Masuk / Keluar and the period combine -->
+			<form
+				method="get"
+				role="search"
+				class="flex flex-wrap items-center gap-3"
+				onsubmit={(e) => {
+					e.preventDefault();
+					goto(financeHref({ q: txnQ || undefined }), { replace: true, reset: false });
+				}}
+			>
+				<label class="bf-search min-w-0 flex-[1_1_220px]">
+					<Search size={16} strokeWidth={2} aria-hidden="true" />
+					<input
+						type="search"
+						bind:value={txnQ}
+						oninput={searchTxn}
+						placeholder="Cari keterangan atau kategori"
+						aria-label="Cari transaksi"
+						maxlength="100"
+					/>
+				</label>
+				<nav class="bf-seg" aria-label="Jenis transaksi">
+					{#each [{ v: undefined, label: 'Semua' }, { v: 'income', label: 'Masuk' }, { v: 'expense', label: 'Keluar' }] as o (o.label)}
+						<a
+							href={financeHref({ type: o.v })}
+							aria-current={f.type === o.v ? 'page' : undefined}
+							data-sveltekit-replacestate
+							data-sveltekit-noscroll>{o.label}</a
+						>
+					{/each}
+				</nav>
+				<PeriodFilter value={f.period} href={financeHref} />
+			</form>
+
+			<p
+				class="flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-ink-2"
+				aria-live="polite"
+			>
+				<span>
+					Menampilkan <b class="text-ink">{f.transactions.total}</b> dari {f.transactions.all} transaksi
+				</span>
+				{#if f.transactions.total > 0}
+					<span>
+						Dibayar di filter ini: <Money amount={f.transactions.paidIncome} type="income" /> ·
+						<Money amount={f.transactions.paidExpense} type="expense" />
+					</span>
+				{/if}
+			</p>
+
+			<TransactionTable
+				rows={f.transactions.rows}
+				onedit={archived ? undefined : (row) => txnDrawer?.openEdit(row)}
+				empty={f.transactions.all === 0
+					? 'Belum ada transaksi untuk klien ini.'
+					: 'Tidak ada transaksi yang cocok dengan filter.'}
+			/>
+			{#if f.transactions.total > f.transactions.pageSize}
+				<Pager
+					page={f.transactions.page}
+					total={f.transactions.total}
+					pageSize={f.transactions.pageSize}
+					noun="transaksi"
+					href={(n) => financeHref({ page: n > 1 ? String(n) : undefined })}
+				/>
+			{/if}
+		</section>
+
+		<TransactionFormDrawer
+			bind:this={txnDrawer}
+			form={f.txnForm}
+			categories={f.categories}
+			clients={[{ id: c.id, name: c.name, archived }]}
+			projects={data.projects.map((p) => ({ id: p.id, name: p.name, clientId: c.id }))}
+			lockClient
+		/>
 	{:else}
 		<div class="grid gap-6 lg:grid-cols-3">
 			<section
