@@ -10,7 +10,8 @@ const env = (name: string) => process.env[name] ?? '';
 
 export const dailyDigest = schedules.task({
 	id: 'daily-digest',
-	cron: { pattern: '30 7 * * *', timezone: 'Asia/Jakarta' },
+	// window: start within 5 minutes (the default 60-minute window could make it arrive at 08:30)
+	cron: { pattern: '30 7 * * *', timezone: 'Asia/Jakarta', window: '5m' },
 	maxDuration: 120,
 	run: async (payload) => {
 		if (!env('DATABASE_URL')) throw new Error('DATABASE_URL is not set for this environment');

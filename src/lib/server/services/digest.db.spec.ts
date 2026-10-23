@@ -140,6 +140,10 @@ describe.skipIf(!isDevDb)('daily digest (dev database)', { timeout: 120_000 }, (
 			expect(mail.html).toContain('Buka Strategi');
 			expect(mail.html).not.toContain('<final>');
 			expect(mail.text).toContain('- 10:00  Kick-off (PT ZZ <Digest> & Co · Deal ringkasan)');
+			expect(tg).not.toContain('saran AI');
+			const withAi = { ...ctx, aiNew: 3 };
+			expect(digestTelegram(d, withAi)).toContain('<i>3 saran AI baru menunggu di Strategi.</i>');
+			expect(digestEmail(d, withAi).text).toContain('3 saran AI baru menunggu di Strategi.');
 		});
 	});
 

@@ -8,6 +8,7 @@ import { addDays } from '../../period';
 import type { DbOrTx } from '../db/client';
 import { action, client, deal, project, user } from '../db/schema/index';
 import { escapeHtml } from '../notify/telegram';
+import { countOpenSuggestions } from './ai-suggestions';
 
 export type DigestItem = {
 	id: string;
@@ -65,7 +66,15 @@ export async function getDigestItems(
 
 // ---------- message text ----------
 
-type Ctx = { name: string; now: Date; appUrl: string };
+type Ctx = {
+	name: string;
+	now: Date;
+	appUrl: string;
+	/** Open AI suggestions waiting on Strategi (P2-03) */
+	aiNew?: number;
+};
+
+const aiLine = (n: number | undefined) => (n ? `${n} saran AI baru menunggu di Strategi.` : null);
 
 /** "14:00", "Sepanjang hari", or for late steps "22 Okt 14:00" */
 function when(item: DigestItem, late: boolean) {
@@ -103,6 +112,8 @@ export function digestTelegram(d: Digest, ctx: Ctx) {
 				`• ${escapeHtml(when(i, s.key === 'late'))}  ${escapeHtml(i.title)}\n   <i>${escapeHtml(i.clientName)} · ${escapeHtml(i.cardTitle)}</i>`
 			);
 	}
+	const ai = aiLine(ctx.aiNew);
+	if (ai) lines.push('', `<i>${escapeHtml(ai)}</i>`);
 	lines.push('', `<a href="${escapeHtml(strategyUrl(ctx.appUrl))}">Buka Strategi</a>`);
 	return lines.join('\n');
 }
@@ -138,6 +149,7 @@ export function digestEmail(d: Digest, ctx: Ctx) {
 <p style="margin:0;font:800 22px/1.2 Arial,sans-serif;color:#0b1840">Halo ${esc(ctx.name.split(' ')[0])}</p>
 <p style="margin:6px 0 0;font:14px/1.5 Arial,sans-serif;color:#3e4c75">${esc(date)} · ${esc(digestCounts(d))}</p>
 ${SECTIONS.map(section).join('')}
+${aiLine(ctx.aiNew) ? `<p style="margin:24px 0 0;padding:10px 12px;border-radius:12px;background:#f7f2ff;font:600 13px/1.4 Arial,sans-serif;color:#5b2db8">${esc(aiLine(ctx.aiNew)!)}</p>` : ''}
 <p style="margin:28px 0 4px"><a href="${esc(url)}" style="display:inline-block;background:#1f5bea;color:#ffffff;border-radius:12px;padding:12px 20px;font:700 14px/1 Arial,sans-serif;text-decoration:none">Buka Strategi</a></p>
 </td></tr>
 <tr><td style="padding:14px 8px;font:12px/1.5 Arial,sans-serif;color:#5e6a8e;text-align:center">Ringkasan harian dari Befisien CRM. Matikan di Pengaturan.</td></tr>
@@ -158,6 +170,7 @@ ${SECTIONS.map(section).join('')}
 					]
 				: []
 		),
+		...(aiLine(ctx.aiNew) ? ['', aiLine(ctx.aiNew)!] : []),
 		'',
 		`Buka Strategi: ${url}`
 	].join('\n');
@@ -197,7 +210,7 @@ export type DigestSenders = {
 export async function sendDigest(
 	db: DbOrTx,
 	u: DigestUser,
-	opts: { now?: Date; appUrl: string; senders: DigestSenders }
+	opts: { now?: Date; appUrl: string; senders: DigestSenders; aiNew?: number }
 ): Promise<DigestResult> {
 	const now = opts.now ?? new Date();
 	const digest = await getDigestItems(db, u.id, now);
@@ -210,7 +223,7 @@ export async function sendDigest(
 		errors: []
 	};
 	if (digest.total === 0) return result;
-	const ctx = { name: u.name, now, appUrl: opts.appUrl };
+	const ctx = { name: u.name, now, appUrl: opts.appUrl, aiNew: opts.aiNew };
 
 	if (!u.digestChannels.includes('telegram')) result.telegram = 'off';
 	else if (!u.telegramChatId) result.telegram = 'not-linked';
@@ -256,10 +269,11 @@ export function getDigestUser(db: DbOrTx, userId: string) {
 /** The scheduled run: every user with the digest switched on */
 export async function runDailyDigest(
 	db: DbOrTx,
-	opts: { now?: Date; appUrl: string; senders: DigestSenders }
+	opts: { now?: Date; appUrl: string; senders: DigestSenders; aiNew?: number }
 ) {
 	const users = await db.select(digestUserFields).from(user).where(eq(user.digestEnabled, true));
+	const aiNew = opts.aiNew ?? (await countOpenSuggestions(db));
 	const results: DigestResult[] = [];
-	for (const u of users) results.push(await sendDigest(db, u, opts));
+	for (const u of users) results.push(await sendDigest(db, u, { ...opts, aiNew }));
 	return results;
 }

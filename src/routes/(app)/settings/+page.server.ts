@@ -5,6 +5,7 @@ import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/schema/index.ts';
 import { appUrl, senders } from '#lib/server/digest-senders.ts';
 import { requireUser } from '#lib/server/guards.ts';
+import { countOpenSuggestions } from '#lib/server/services/ai-suggestions.ts';
 import { getDigestUser, sendDigest, type ChannelResult } from '#lib/server/services/digest.ts';
 import {
 	createLinkCode,
@@ -82,7 +83,7 @@ export const actions: Actions = {
 		const me = requireUser(locals);
 		const u = await getDigestUser(db, me.id);
 		if (!u) return fail(400, { error: 'Pengguna tidak ditemukan.' });
-		const r = await sendDigest(db, u, { appUrl, senders });
+		const r = await sendDigest(db, u, { appUrl, senders, aiNew: await countOpenSuggestions(db) });
 		if (r.total === 0)
 			return {
 				done: 'Tidak ada langkah terlambat, hari ini, atau besok, jadi tidak ada yang dikirim.'

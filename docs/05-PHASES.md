@@ -242,11 +242,12 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - **Done when:** accept and dismiss work, are logged in the activity timeline, and the disclaimer is visible.
 - _Note: "Minta saran AI" (on a plan, and on the client page) calls the service directly from the form action and waits (10-30 s, Vercel `maxDuration` 60) instead of triggering `ai-suggest-now`; P2-03 can move it onto Trigger.dev. Accept opens an inline step form (title, WIB date / time, PIC; a deal / project picker for client-wide suggestions). The JSON schema uses plain strings ("" = none) because MiniMax rejects nullable type lists, and the parser also accepts a bare list._
 
-### [ ] P2-03 Trigger.dev AI jobs
+### [x] P2-03 Trigger.dev AI jobs
 
 - `ai-suggestions` (06:30 WIB, active clients only), `ai-suggest-now` (on demand), `ai-expire-suggestions` (00:30)
 - The digest mentions "x saran AI baru"
 - **Done when:** the daily run completes for all active clients, and unchanged clients are skipped (visible in the run log).
+- _Note: `ai-suggestions` (06:30) and `ai-expire-suggestions` (00:30) run on Trigger.dev prod (v20261023.3); every schedule, the digest included, has `window: '5m'` (the default 60-minute window could start the 06:30 run after the 07:30 digest). Staging check 24 Okt 2026: run 1 = 2 clients, 3 suggestions; run 2 = both skipped. `ai-suggest-now` was not built: "Minta saran AI" runs directly in the app (20-30 s, within Vercel's 60 s). Production model: `AI_MODEL=MiniMax-M3.1-Flash-Preview` (cheaper; set on Vercel and Trigger.dev)._
 
 ### [ ] P2-04 Invoice schema + numbering
 
