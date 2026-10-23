@@ -45,7 +45,7 @@
 	{:else}
 		<button
 			type="button"
-			class="bf-step__icon cursor-pointer hover:outline-2 hover:outline-success-fill"
+			class="bf-step__icon bf-hit cursor-pointer hover:outline-2 hover:outline-success-fill"
 			aria-label="Tandai selesai: {step.title}"
 			title="Tandai selesai"
 			disabled={!oncomplete}

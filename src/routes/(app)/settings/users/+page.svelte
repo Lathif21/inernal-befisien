@@ -96,7 +96,7 @@
 <main class="page-body gap-5!">
 	<a
 		href={resolve('settings')}
-		class="inline-flex w-fit items-center gap-1.5 text-small font-bold text-accent-ink no-underline"
+		class="inline-flex min-h-(--size-touch) w-fit items-center gap-1.5 text-small font-bold text-accent-ink no-underline"
 	>
 		<ArrowLeft size={15} strokeWidth={2.2} />
 		Pengaturan

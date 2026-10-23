@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import type { ResolvedPathname } from '$app/types';
 	import { Popover } from 'bits-ui';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -19,7 +20,7 @@
 		 * Page URL with these params changed (undefined removes one). The page keeps its other
 		 * filters and builds the link with resolve().
 		 */
-		href: (params: Record<string, string | undefined>) => string;
+		href: (params: Record<string, string | undefined>) => ResolvedPathname;
 	};
 
 	let { value, href }: Props = $props();
@@ -49,7 +50,6 @@
 		e.preventDefault();
 		if (!customFrom) return;
 		customOpen = false;
-		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the page builds `href` with resolve()
 		goto(link('custom', customFrom, customTo || customFrom), { reset: false });
 	}
 
@@ -58,7 +58,6 @@
 
 <!-- The one period filter: Harian · Mingguan · Bulanan · Tahunan · Custom + prev / next + label
 	(docs/design-system/components/PeriodFilter). Links, so a refresh or a shared URL keeps it. -->
-<!-- eslint-disable svelte/no-navigation-without-resolve -- `href` is built by the page with resolve() -->
 <div class="flex flex-wrap items-center gap-2">
 	<div class="bf-seg" role="group" aria-label="Rentang waktu">
 		{#each OPTIONS as p (p)}
@@ -139,4 +138,3 @@
 		{/if}
 	</div>
 </div>
-<!-- eslint-enable svelte/no-navigation-without-resolve -->

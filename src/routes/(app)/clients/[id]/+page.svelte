@@ -201,7 +201,7 @@
 <main class="page-body">
 	<a
 		href={resolve('clients')}
-		class="inline-flex w-fit items-center gap-1.5 text-small font-bold text-accent-ink no-underline"
+		class="inline-flex min-h-(--size-touch) w-fit items-center gap-1.5 text-small font-bold text-accent-ink no-underline"
 	>
 		<ArrowLeft size={15} strokeWidth={2.2} />
 		Semua klien
@@ -453,7 +453,7 @@
 					Belum ada kontak. Kontak pertama otomatis menjadi kontak utama.
 				</p>
 			{:else}
-				<ul class="grid gap-3 md:grid-cols-2">
+				<ul class="grid gap-3 *:min-w-0 md:grid-cols-2">
 					{#each data.contacts as ct (ct.id)}
 						<li class="flex flex-col gap-3 rounded-kanban border border-line p-4">
 							<div class="flex items-start gap-3">

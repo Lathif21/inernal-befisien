@@ -113,7 +113,7 @@
 							{#if !readonly}
 								<button
 									type="button"
-									class="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-line-strong text-transparent hover:border-success-fill hover:text-success-fill"
+									class="bf-hit mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-line-strong text-transparent hover:border-success-fill hover:text-success-fill"
 									aria-label="Tandai selesai: {s.title}"
 									title="Tandai selesai"
 									onclick={() => oncomplete(s)}

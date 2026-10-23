@@ -218,7 +218,9 @@
 					</li>
 				{/each}
 			</ul>
-			<a href={resolve('pipeline')} class="mt-auto text-small font-bold text-accent-ink"
+			<a
+				href={resolve('pipeline')}
+				class="mt-auto inline-flex min-h-(--size-touch) items-center text-small font-bold text-accent-ink"
 				>Buka Pipeline Sales</a
 			>
 		</section>

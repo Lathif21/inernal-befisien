@@ -204,7 +204,7 @@
 		</form>
 	</section>
 
-	<ul class="grid gap-4 md:grid-cols-3">
+	<ul class="grid gap-4 *:min-w-0 md:grid-cols-3">
 		{#each SECTIONS as s (s.title)}
 			<li>
 				<a

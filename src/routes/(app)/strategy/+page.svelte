@@ -172,7 +172,7 @@
 	<li class="flex items-start gap-3 border-t border-tint-2 py-2.5 first:border-t-0">
 		<button
 			type="button"
-			class="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md border-2 border-line-strong text-transparent hover:border-success-fill hover:text-success-fill"
+			class="bf-hit mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md border-2 border-line-strong text-transparent hover:border-success-fill hover:text-success-fill"
 			aria-label="Tandai selesai: {s.title}"
 			onclick={() => complete(s)}
 		>
@@ -239,7 +239,7 @@
 	</div>
 
 	<!-- Perlu perhatian: always first, ignores the period -->
-	<section class="grid gap-4 md:grid-cols-2" aria-label="Perlu perhatian">
+	<section class="grid gap-4 *:min-w-0 md:grid-cols-2" aria-label="Perlu perhatian">
 		<div class="flex flex-col gap-2 rounded-card border-t-4 border-danger-fill bg-surface p-5">
 			<h2 class="text-[12.5px] font-extrabold tracking-[0.04em] text-danger">
 				TERLAMBAT · {late.length}
@@ -266,7 +266,7 @@
 		</div>
 	</section>
 
-	<div class="grid items-start gap-6 lg:grid-cols-3">
+	<div class="grid items-start gap-6 *:min-w-0 lg:grid-cols-3">
 		<!-- Phone order: Perlu perhatian → Saran AI → Rencana → Jadwal -->
 		<section
 			class="order-2 flex flex-col gap-4 lg:order-1 lg:col-span-2"
