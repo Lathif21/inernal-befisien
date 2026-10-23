@@ -200,6 +200,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - `daily-digest` scheduled task (07:30 Asia/Jakarta): late / today (with times) / tomorrow, sent to **Telegram** and **email** (Resend, from `info@befisien.com`, Befisien style, button "Buka Strategi")
 - Settings → digest on/off and channels per user
 - **Done when:** both users have linked Telegram, a test run sends the correct Telegram message and email, nothing is sent on empty days, and it is deployed. (Telegram in Phase 1 is a proposal waiting for confirmation, see README.)
+- _Status: code, migration 0004, Vercel env vars and the Telegram webhook (@Befisienbot → staging `/api/telegram`) are live. Waiting on: befisien.com verified in Resend, Trigger.dev CLI login + task env vars + `npx trigger.dev@latest deploy`, and both users linking Telegram in Pengaturan._
 
 ### [ ] P1-13 Settings: users & categories
 
