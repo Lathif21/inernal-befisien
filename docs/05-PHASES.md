@@ -202,13 +202,14 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - **Done when:** both users have linked Telegram, a test run sends the correct Telegram message and email, nothing is sent on empty days, and it is deployed. (Telegram in Phase 1 is a proposal waiting for confirmation, see README.)
 - _Status: live on staging. Trigger.dev `daily-digest` deployed (v20261023.1, prod, 07:30 Asia/Jakarta, env vars set); a test run sent the email to nama@ (1 step) and correctly sent nothing to info@ (nothing due). info@ is linked to @Befisienbot. Still open: link nama@ to Telegram, and one test run where a linked user has steps due, to see the Telegram message._
 
-### [ ] P1-13 Settings: users & categories
+### [x] P1-13 Settings: users & categories
 
 **Depends:** P0-03, P1-01
 
 - Users list, add user, reset password, digest toggle
 - Categories CRUD and reorder
 - **Done when:** a new user can be added from the UI and log in.
+- _Note: `/settings/users` (admin only): add (password typed or generated and shown once), reset password (ends that user's sessions), digest on/off per user; Telegram stays self-service in each user's Pengaturan. `/settings/categories`: add, rename, reorder per type, delete only when unused. `scripts/create-user.ts` now uses the same `services/users.ts`._
 
 ### [ ] P1-14 Phase 1 hardening
 

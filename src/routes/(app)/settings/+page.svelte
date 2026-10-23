@@ -17,14 +17,26 @@
 
 	let { data }: PageProps = $props();
 
-	// Sections of docs/03-SCREENS.md §10 that arrive with P1-13
-	const LATER = [
+	// Other sections of docs/03-SCREENS.md §10
+	const SECTIONS = [
 		{
+			href: resolve('settings/users'),
 			icon: Users,
 			title: 'Pengguna',
-			text: 'Tambah pengguna dan reset kata sandi.'
+			text: 'Tambah pengguna, reset kata sandi, ringkasan harian.'
 		},
-		{ icon: Tags, title: 'Kategori', text: 'Kategori pemasukan dan pengeluaran.' }
+		{
+			href: resolve('settings/categories'),
+			icon: Tags,
+			title: 'Kategori',
+			text: 'Kategori pemasukan dan pengeluaran.'
+		},
+		{
+			href: resolve('settings/import'),
+			icon: FileUp,
+			title: 'Import Data',
+			text: 'Pindahkan klien, kontak, dan deal dari file CSV.'
+		}
 	];
 
 	let busy = $state<string | null>(null);
@@ -192,36 +204,24 @@
 		</form>
 	</section>
 
-	<ul class="grid gap-4 md:grid-cols-2">
-		<li>
-			<a
-				href={resolve('settings/import')}
-				class="flex items-center gap-4 rounded-card bg-surface p-5 text-ink no-underline hover:shadow-raised"
-			>
-				<span
-					class="grid size-11 shrink-0 place-items-center rounded-control bg-tint text-accent-ink"
+	<ul class="grid gap-4 md:grid-cols-3">
+		{#each SECTIONS as s (s.title)}
+			<li>
+				<a
+					href={s.href}
+					class="flex h-full items-center gap-4 rounded-card bg-surface p-5 text-ink no-underline hover:shadow-raised"
 				>
-					<FileUp size={20} strokeWidth={1.9} />
-				</span>
-				<span class="min-w-0 flex-1">
-					<span class="block text-card-title">Import Data</span>
-					<span class="block text-small text-ink-2"
-						>Pindahkan klien, kontak, dan deal dari file CSV.</span
+					<span
+						class="grid size-11 shrink-0 place-items-center rounded-control bg-tint text-accent-ink"
 					>
-				</span>
-				<ChevronRight size={18} strokeWidth={2} class="text-ink-3" />
-			</a>
-		</li>
-		{#each LATER as s (s.title)}
-			<li class="flex items-center gap-4 rounded-card bg-surface p-5 opacity-70">
-				<span class="grid size-11 shrink-0 place-items-center rounded-control bg-tint-2 text-ink-3">
-					<s.icon size={20} strokeWidth={1.9} />
-				</span>
-				<span class="min-w-0 flex-1">
-					<span class="block text-card-title">{s.title}</span>
-					<span class="block text-small text-ink-2">{s.text}</span>
-				</span>
-				<span class="bf-chip">Segera</span>
+						<s.icon size={20} strokeWidth={1.9} />
+					</span>
+					<span class="min-w-0 flex-1">
+						<span class="block text-card-title">{s.title}</span>
+						<span class="block text-small text-ink-2">{s.text}</span>
+					</span>
+					<ChevronRight size={18} strokeWidth={2} class="text-ink-3" />
+				</a>
 			</li>
 		{/each}
 	</ul>

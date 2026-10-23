@@ -49,7 +49,7 @@
 		e.preventDefault();
 		if (!customFrom) return;
 		customOpen = false;
-		// the page builds `href` with resolve()
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the page builds `href` with resolve()
 		goto(link('custom', customFrom, customTo || customFrom), { reset: false });
 	}
 

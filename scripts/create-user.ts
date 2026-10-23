@@ -1,11 +1,10 @@
 // Creates a login for the CRM (public sign-up is disabled).
 // npm run user:create -- --email a@befisien.com --name "Nama" [--password …] [--role admin]
-import { randomBytes, randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
-import { hashPassword } from 'better-auth/crypto';
-import { eq } from 'drizzle-orm';
 import { createDb } from '../src/lib/server/db/client.ts';
-import { account, user, userRole } from '../src/lib/server/db/schema/index.ts';
+import { userRole } from '../src/lib/server/db/schema/index.ts';
+import { ServiceError } from '../src/lib/server/services/errors.ts';
+import { createUser } from '../src/lib/server/services/users.ts';
 
 try {
 	process.loadEnvFile();
@@ -31,30 +30,16 @@ if (!userRole.enumValues.includes(role))
 	fail(`--role must be one of ${userRole.enumValues.join(', ')}`);
 if (!process.env.DATABASE_URL) fail('DATABASE_URL is not set');
 
-const generated = !values.password;
-const password = values.password ?? randomBytes(12).toString('base64url');
-if (password.length < 8) fail('password must be at least 8 characters');
+if (values.password && values.password.length < 8) fail('password must be at least 8 characters');
 
 const db = createDb(process.env.DATABASE_URL);
-
-const [existing] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
-if (existing) fail(`a user with email ${email} already exists`);
-
-const userId = randomUUID();
-await db.transaction(async (tx) => {
-	await tx.insert(user).values({ id: userId, email, name, role, emailVerified: true });
-	// Better Auth's email + password login reads the hash from the 'credential' account
-	await tx.insert(account).values({
-		id: randomUUID(),
-		userId,
-		accountId: userId,
-		providerId: 'credential',
-		password: await hashPassword(password)
-	});
-});
-
-console.log(`Created ${role} ${name} <${email}>`);
-if (generated) console.log(`Password: ${password}`);
+try {
+	const created = await createUser(db, { email, name, role, password: values.password });
+	console.log(`Created ${role} ${name} <${created.email}>`);
+	if (created.generated) console.log(`Password: ${created.password}`);
+} catch (e) {
+	fail(e instanceof ServiceError ? e.message : String(e));
+}
 process.exit(0);
 
 function fail(message: string): never {
