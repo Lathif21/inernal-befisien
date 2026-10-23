@@ -173,13 +173,14 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - **Done when:** totals on the client page, the project card and `/finance` match a hand-calculated check on the seed data.
 - _Note: the client finance strip is all time (paid only, plus planned income); the Keuangan tab table follows its own filters. `/finance` KPI tiles follow the period and the client filter, not search / type / category / status. The client page's Ringkasan also shows each active project (payment progress, next action)._
 
-### [ ] P1-10 Dashboard
+### [x] P1-10 Dashboard
 
 **Depends:** P1-07b, P1-09
 
 - `services/reports.ts`: KPIs for any period plus "vs periode sebelumnya" deltas, time series by bucket, per-client series (top 10 + Lainnya), pipeline summary (current), top 5 clients by profit in the period
 - Dashboard per `03-SCREENS.md` §2: **no search or add buttons**, period filter in the header, `GroupedBarChart` with **View by Waktu / Klien** (vertical bars in both)
 - **Done when:** every number follows the period, the Klien view total equals the Waktu view total for the same period, the numbers match `/finance`, and the page loads in under 1 second on production.
+- _Note: "Nilai pipeline aktif" for a period = deals open at some point in it (created before it ended, and still open or won / lost after it started), valued at today's estimate. The chart is a plain-SVG `GroupedBarChart` (no LayerChart: one chart type, exact mark specs, keyboard tooltips and a table view). Production load measured at ~370 ms median from Indonesia (staging data is small)._
 
 ### [ ] P1-11 CSV import
 
