@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { resolvePeriod } from '../../period';
 import { createDb, type Tx } from '../db/client';
-import { category, deal, transaction, user } from '../db/schema/index';
+import { category, client, deal, transaction, user } from '../db/schema/index';
 import { clientSchema } from '../../schemas/client';
 import { dealSchema } from '../../schemas/deal';
 import { createClient } from './clients';
@@ -188,6 +188,14 @@ describe.skipIf(!isDevDb)('reports (dev database)', { timeout: 90_000 }, () => {
 			const proposal = (s: typeof summaryAfter) => s.stages.find((x) => x.stage === 'proposal')!;
 			expect(proposal(summaryAfter).value - proposal(summaryBefore).value).toBe(30_000_000);
 			expect(summaryAfter.value - summaryBefore.value).toBe(30_000_000);
+
+			// an archived client leaves the pipeline tile, even for deals active in the period
+			await tx.update(client).set({ archivedAt: new Date() }).where(eq(client.id, c.id));
+			const archived = await dashboardKpis(tx, p);
+			expect([archived.pipeline.value, archived.pipeline.count]).toEqual([
+				before.pipeline.value,
+				before.pipeline.count
+			]);
 		});
 	});
 });

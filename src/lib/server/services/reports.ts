@@ -1,7 +1,20 @@
 // Dashboard numbers. Relative imports only: shared with Trigger.dev (the digest reuses them).
 // Every money figure here is built from paid transactions with the same filters as Keuangan
 // (services/transactions.ts), so the Dashboard, Keuangan and the client pages always agree.
-import { and, asc, desc, eq, gte, inArray, lt, lte, notInArray, or, sql } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	gte,
+	inArray,
+	isNull,
+	lt,
+	lte,
+	notInArray,
+	or,
+	sql
+} from 'drizzle-orm';
 import { OPEN_DEAL_STAGES, type DealStage } from '../../constants';
 import { bucketStarts, type ResolvedPeriod } from '../../period';
 import type { DbOrTx } from '../db/client';
@@ -21,7 +34,7 @@ const paidBetween = (from: string, to: string) =>
 /**
  * "Nilai pipeline aktif" for a period: deals that were open at some point in it. Created before
  * the period ended, and either still open or won / lost after it started. Uses today's value
- * estimate (history of estimates is not kept).
+ * estimate (history of estimates is not kept). Deals of archived clients do not count.
  */
 async function activePipeline(db: DbOrTx, from: Date, to: Date) {
 	const [row] = await db
@@ -30,8 +43,11 @@ async function activePipeline(db: DbOrTx, from: Date, to: Date) {
 			count: sql<number>`count(*)::int`
 		})
 		.from(deal)
+		.innerJoin(client, eq(client.id, deal.clientId))
 		.where(
 			and(
+				// archived clients are out of the pipeline, like Ringkasan Pipeline and the board
+				isNull(client.archivedAt),
 				lt(deal.createdAt, to),
 				or(
 					notInArray(deal.stage, ['won', 'lost']),
