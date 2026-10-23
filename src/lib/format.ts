@@ -31,6 +31,22 @@ const DATE_PATTERNS = {
 export type DateStyle = keyof typeof DATE_PATTERNS;
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const LOCAL_DATETIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+
+/** `<input type="datetime-local">` value (WIB wall time, `2026-10-23T14:30`) → instant. Null if malformed. */
+export function wibLocalToDate(value: string): Date | null {
+	const m = LOCAL_DATETIME.exec(value);
+	if (!m) return null;
+	const [y, mo, d, h, mi] = m.slice(1).map(Number);
+	const date = new TZDate(y, mo - 1, d, h, mi, TZ);
+	// reject rollovers such as 2026-02-31
+	return date.getMonth() === mo - 1 && date.getDate() === d ? new Date(date.getTime()) : null;
+}
+
+/** Instant → `<input type="datetime-local">` value in WIB */
+export function dateToWibLocal(date: Date | number = Date.now()): string {
+	return format(date, "yyyy-MM-dd'T'HH:mm", { in: wib });
+}
 
 /**
  * Indonesian date display, always in WIB.
@@ -68,6 +84,14 @@ export function phoneNormalize(raw: string | null | undefined): string | null {
 	}
 
 	return digits.length >= 8 && digits.length <= 15 ? digits : null;
+}
+
+/** Stored `6281234567890` → `+62 812-3456-7890` for display; other numbers get a `+` only */
+export function phoneDisplay(stored: string): string {
+	if (!stored.startsWith('62')) return `+${stored}`;
+	const local = stored.slice(2);
+	const groups = [local.slice(0, 3), local.slice(3, 7), local.slice(7)].filter(Boolean);
+	return `+62 ${groups.join('-')}`;
 }
 
 const MINUS = '−';

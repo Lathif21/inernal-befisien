@@ -1,5 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { dateID, dayKeyWib, nowWib, phoneNormalize, rupiah, rupiahShort } from './format';
+import {
+	dateID,
+	dateToWibLocal,
+	dayKeyWib,
+	nowWib,
+	phoneDisplay,
+	phoneNormalize,
+	rupiah,
+	rupiahShort,
+	wibLocalToDate
+} from './format';
+
+describe('phoneDisplay', () => {
+	it('groups Indonesian numbers and prefixes others with +', () => {
+		expect(phoneDisplay('6281234567890')).toBe('+62 812-3456-7890');
+		expect(phoneDisplay('62215551234')).toBe('+62 215-5512-34');
+		expect(phoneDisplay('6591234567')).toBe('+6591234567');
+	});
+});
+
+describe('datetime-local in WIB', () => {
+	it('reads the input as Jakarta wall time', () => {
+		expect(wibLocalToDate('2026-10-23T14:30')?.toISOString()).toBe('2026-10-23T07:30:00.000Z');
+		// 00:15 WIB is still the previous day in UTC
+		expect(wibLocalToDate('2026-10-23T00:15')?.toISOString()).toBe('2026-10-22T17:15:00.000Z');
+	});
+
+	it('rejects malformed or impossible values', () => {
+		expect(wibLocalToDate('')).toBeNull();
+		expect(wibLocalToDate('23/10/2026 14:30')).toBeNull();
+		expect(wibLocalToDate('2026-02-31T10:00')).toBeNull();
+	});
+
+	it('round-trips through the input format', () => {
+		const instant = new Date('2026-10-22T17:15:00Z');
+		expect(dateToWibLocal(instant)).toBe('2026-10-23T00:15');
+		expect(wibLocalToDate(dateToWibLocal(instant))?.getTime()).toBe(instant.getTime());
+	});
+});
 
 describe('dateID', () => {
 	// 2026-10-22 03:00 UTC = Kamis 22 Okt 2026 10:00 WIB

@@ -6,6 +6,7 @@ import { addDays, format } from 'date-fns';
 import { sql } from 'drizzle-orm';
 import { generateNKeysBetween } from 'fractional-indexing';
 import { parseArgs } from 'node:util';
+import { DEAL_STAGE_META } from '../src/lib/constants.ts';
 import { TZ } from '../src/lib/format.ts';
 import { createDb, type Tx } from '../src/lib/server/db/client.ts';
 import { logActivity } from '../src/lib/server/services/activity.ts';
@@ -653,7 +654,7 @@ await db.transaction(async (tx) => {
 					tx,
 					clientIds.get(ck)!,
 					'stage_change',
-					`Deal "${d.title}" pindah ke tahap ${d.stage}`,
+					`Deal "${d.title}" pindah ke tahap ${DEAL_STAGE_META[d.stage ?? 'lead'].label}`,
 					{ dealId: row.id, to: d.stage },
 					-inStageDays
 				);

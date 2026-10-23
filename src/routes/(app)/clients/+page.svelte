@@ -1,11 +1,8 @@
 <script lang="ts">
 	import { enhance as kitEnhance } from '$app/forms';
-	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { AlertDialog } from 'bits-ui';
-	import { superForm } from 'sveltekit-superforms';
 	import Archive from '@lucide/svelte/icons/archive';
 	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
@@ -15,14 +12,12 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
 	import Avatar from '#lib/components/Avatar.svelte';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
+	import ClientFormDrawer from '#lib/components/clients/ClientFormDrawer.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Pager from '#lib/components/Pager.svelte';
-	import Field from '#lib/components/form/Field.svelte';
-	import Drawer from '#lib/components/layout/Drawer.svelte';
 	import Topbar from '#lib/components/layout/Topbar.svelte';
 	import {
-		CLIENT_SOURCE_LABELS,
-		CLIENT_SOURCES,
 		CLIENT_STATUS_LABELS,
 		CLIENT_STATUSES,
 		INDUSTRIES,
@@ -30,60 +25,24 @@
 		type ClientStatus
 	} from '#lib/constants.ts';
 	import { rupiah } from '#lib/format.ts';
-	import { EDITABLE_CLIENT_STATUSES } from '#lib/schemas/client.ts';
 	import type { ClientRow, ClientSort } from '#lib/server/services/clients.ts';
-	import { toast } from '#lib/toast.ts';
+	import { refreshThenToast } from '#lib/enhance.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
-	// ---------- create / edit drawer (Superforms) ----------
-	let drawerOpen = $state(false);
-	let editingName = $state<string | null>(null);
-
-	const { form, errors, enhance, submitting, message, reset } = superForm(
-		untrack(() => data.form),
-		{
-			id: 'client-form',
-			onUpdated({ form }) {
-				if (form.message?.type === 'success') {
-					drawerOpen = false;
-					toast.success(form.message.text);
-				}
-			}
-		}
-	);
-
-	function openCreate() {
-		editingName = null;
-		reset();
-		drawerOpen = true;
-	}
-
-	function openEdit(row: ClientRow) {
-		editingName = row.name;
-		reset({
-			data: {
-				id: row.id,
-				name: row.name,
-				industry: row.industry ?? '',
-				source: row.source ?? '',
-				status: (EDITABLE_CLIENT_STATUSES as readonly string[]).includes(row.status)
-					? (row.status as (typeof EDITABLE_CLIENT_STATUSES)[number])
-					: 'inactive',
-				city: row.city ?? '',
-				address: row.address ?? '',
-				website: row.website ?? '',
-				npwp: row.npwp ?? '',
-				ownerId: row.ownerId ?? '',
-				notes: row.notes ?? ''
-			}
-		});
-		drawerOpen = true;
-	}
+	// ---------- create / edit drawer ----------
+	let clientDrawer: ReturnType<typeof ClientFormDrawer> | undefined = $state();
+	const openCreate = () => clientDrawer?.openCreate();
+	const openEdit = (row: ClientRow) => clientDrawer?.openEdit(row);
 
 	// ---------- archive confirmation ----------
 	let archiveTarget = $state<ClientRow | null>(null);
+	let archiveOpen = $state(false);
+	function askArchive(row: ClientRow) {
+		archiveTarget = row;
+		archiveOpen = true;
+	}
 
 	// ---------- filters (GET params; plain form submit works without JS) ----------
 	const params = $derived(data.params);
@@ -304,14 +263,12 @@
 							{#each data.list.rows as row (row.id)}
 								<tr>
 									<td class="max-w-64">
-										<button
-											type="button"
-											class="block max-w-full truncate text-left font-bold text-ink hover:text-accent-ink"
-											onclick={() => openEdit(row)}
-											disabled={!!row.archivedAt}
+										<a
+											href={resolve('/(app)/clients/[id]', { id: row.id })}
+											class="block max-w-full truncate font-bold text-ink no-underline hover:text-accent-ink"
 										>
 											{row.name}
-										</button>
+										</a>
 										{#if row.city}<span class="block text-small text-ink-3">{row.city}</span>{/if}
 									</td>
 									<td>{row.industry ? INDUSTRY_LABELS[row.industry] : '–'}</td>
@@ -359,19 +316,7 @@
 									<td>
 										<div class="flex justify-end gap-1.5">
 											{#if row.archivedAt}
-												<form
-													method="post"
-													action="?/restore"
-													use:kitEnhance={() =>
-														async ({ result, update }) => {
-															if (result.type === 'success')
-																toast.success(String(result.data?.done));
-															if (result.type === 'failure')
-																toast.error(String(result.data?.error));
-															// stay on this URL so search, filters and sort survive (SvelteKit 3 navigates by default)
-															await update({ navigate: false });
-														}}
-												>
+												<form method="post" action="?/restore" use:kitEnhance={refreshThenToast()}>
 													<input type="hidden" name="id" value={row.id} />
 													<button type="submit" class="bf-btn bf-btn--secondary bf-btn--sm">
 														<ArchiveRestore size={15} strokeWidth={1.75} />
@@ -391,7 +336,7 @@
 													type="button"
 													class="bf-icon-btn"
 													aria-label="Arsipkan {row.name}"
-													onclick={() => (archiveTarget = row)}
+													onclick={() => askArchive(row)}
 												>
 													<Archive size={15} strokeWidth={1.75} />
 												</button>
@@ -416,158 +361,15 @@
 	{/if}
 </main>
 
-<Drawer
-	bind:open={drawerOpen}
-	title={editingName ? 'Edit klien' : 'Tambah klien'}
-	description={editingName ?? 'Data perusahaan. Kontak ditambahkan di halaman detail klien.'}
+<ClientFormDrawer bind:this={clientDrawer} form={data.form} owners={data.owners} />
+
+<ConfirmDialog
+	bind:open={archiveOpen}
+	title="Arsipkan klien?"
+	action="?/archive"
+	fields={{ id: archiveTarget?.id ?? '' }}
+	confirmLabel="Arsipkan"
 >
-	<form
-		id="client-form"
-		method="post"
-		action="?/save"
-		use:enhance
-		class="flex flex-col gap-4"
-		novalidate
-	>
-		<input type="hidden" name="id" bind:value={$form.id} />
-
-		{#if $message?.type === 'error'}
-			<p
-				role="alert"
-				class="rounded-control bg-danger-bg px-3.5 py-2.5 text-small font-bold text-danger"
-			>
-				{$message.text}
-			</p>
-		{/if}
-
-		<Field label="Nama klien" name="name" required errors={$errors.name}>
-			{#snippet children(attrs)}
-				<input {...attrs} bind:value={$form.name} autocomplete="organization" maxlength="120" />
-			{/snippet}
-		</Field>
-
-		<div class="grid gap-4 sm:grid-cols-2">
-			<Field label="Status" name="status" errors={$errors.status}>
-				{#snippet children(attrs)}
-					<select {...attrs} bind:value={$form.status}>
-						{#each EDITABLE_CLIENT_STATUSES as s (s)}<option value={s}
-								>{CLIENT_STATUS_LABELS[s]}</option
-							>{/each}
-					</select>
-				{/snippet}
-			</Field>
-			<Field label="Industri" name="industry" errors={$errors.industry}>
-				{#snippet children(attrs)}
-					<select {...attrs} bind:value={$form.industry}>
-						<option value="">Pilih industri</option>
-						{#each INDUSTRIES as ind (ind)}<option value={ind}>{INDUSTRY_LABELS[ind]}</option
-							>{/each}
-					</select>
-				{/snippet}
-			</Field>
-			<Field label="Sumber" name="source" errors={$errors.source}>
-				{#snippet children(attrs)}
-					<select {...attrs} bind:value={$form.source}>
-						<option value="">Pilih sumber</option>
-						{#each CLIENT_SOURCES as s (s)}<option value={s}>{CLIENT_SOURCE_LABELS[s]}</option
-							>{/each}
-					</select>
-				{/snippet}
-			</Field>
-			<Field label="Pemilik" name="ownerId" errors={$errors.ownerId} hint="Kosong = Anda">
-				{#snippet children(attrs)}
-					<select {...attrs} bind:value={$form.ownerId}>
-						<option value="">Pilih pemilik</option>
-						{#each data.owners as o (o.id)}<option value={o.id}>{o.name}</option>{/each}
-					</select>
-				{/snippet}
-			</Field>
-		</div>
-
-		<Field label="Kota" name="city" errors={$errors.city}>
-			{#snippet children(attrs)}
-				<input {...attrs} bind:value={$form.city} autocomplete="address-level2" maxlength="80" />
-			{/snippet}
-		</Field>
-		<Field label="Alamat" name="address" errors={$errors.address}>
-			{#snippet children(attrs)}
-				<textarea {...attrs} bind:value={$form.address} rows="2" autocomplete="street-address"
-				></textarea>
-			{/snippet}
-		</Field>
-
-		<div class="grid gap-4 sm:grid-cols-2">
-			<Field label="Website" name="website" errors={$errors.website}>
-				{#snippet children(attrs)}
-					<input
-						{...attrs}
-						bind:value={$form.website}
-						inputmode="url"
-						placeholder="contoh.co.id"
-						maxlength="200"
-					/>
-				{/snippet}
-			</Field>
-			<Field label="NPWP" name="npwp" errors={$errors.npwp} hint="Untuk invoice (Fase 2)">
-				{#snippet children(attrs)}
-					<input {...attrs} bind:value={$form.npwp} inputmode="numeric" maxlength="24" />
-				{/snippet}
-			</Field>
-		</div>
-
-		<Field label="Catatan" name="notes" errors={$errors.notes}>
-			{#snippet children(attrs)}
-				<textarea {...attrs} bind:value={$form.notes} rows="4"></textarea>
-			{/snippet}
-		</Field>
-	</form>
-
-	{#snippet footer()}
-		<button type="button" class="bf-btn bf-btn--secondary" onclick={() => (drawerOpen = false)}>
-			Batal
-		</button>
-		<button type="submit" form="client-form" class="bf-btn bf-btn--primary" disabled={$submitting}>
-			{$submitting ? 'Menyimpan…' : 'Simpan klien'}
-		</button>
-	{/snippet}
-</Drawer>
-
-<AlertDialog.Root
-	open={archiveTarget !== null}
-	onOpenChange={(open) => {
-		if (!open) archiveTarget = null;
-	}}
->
-	<AlertDialog.Portal>
-		<AlertDialog.Overlay class="fixed inset-0 z-40 bg-navy/40" />
-		<AlertDialog.Content
-			class="fixed top-1/2 left-1/2 z-50 flex w-[calc(100vw-32px)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-panel bg-surface p-6 shadow-modal"
-		>
-			<AlertDialog.Title class="text-section-title">Arsipkan klien?</AlertDialog.Title>
-			<AlertDialog.Description class="text-body text-ink-2">
-				<b class="text-ink">{archiveTarget?.name}</b> tidak tampil lagi di daftar dan board. Datanya tetap
-				tersimpan dan bisa dipulihkan dari filter Status → Diarsipkan.
-			</AlertDialog.Description>
-			<form
-				method="post"
-				action="?/archive"
-				class="flex justify-end gap-2"
-				use:kitEnhance={() =>
-					async ({ result, update }) => {
-						if (result.type === 'success') toast.success(String(result.data?.done));
-						if (result.type === 'failure') toast.error(String(result.data?.error));
-						archiveTarget = null;
-						// stay on this URL so search, filters and sort survive (SvelteKit 3 navigates by default)
-						await update({ navigate: false });
-					}}
-			>
-				<input type="hidden" name="id" value={archiveTarget?.id ?? ''} />
-				<AlertDialog.Cancel class="bf-btn bf-btn--secondary">Batal</AlertDialog.Cancel>
-				<button type="submit" class="bf-btn bf-btn--dark">
-					<Archive size={16} strokeWidth={1.75} />
-					Arsipkan
-				</button>
-			</form>
-		</AlertDialog.Content>
-	</AlertDialog.Portal>
-</AlertDialog.Root>
+	<b class="text-ink">{archiveTarget?.name}</b> tidak tampil lagi di daftar dan board. Datanya tetap tersimpan
+	dan bisa dipulihkan dari filter Status → Diarsipkan.
+</ConfirmDialog>

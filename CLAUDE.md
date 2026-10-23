@@ -15,7 +15,9 @@ SvelteKit 3 (Svelte 5 runes, TypeScript) · Neon Postgres (project `long-truth-5
 - **Origin / CSRF in production:** adapter-node 6 ignores `ORIGIN`. It derives the origin from the `Host` header and assumes https; behind Nginx set `PROTOCOL_HEADER=x-forwarded-proto`. Better Auth uses `BETTER_AUTH_URL`.
 - **Inputs:** use `defaultValue={…}` (not `value={…}`) for server-provided initial values, so text typed before hydration is kept.
 - **UI primitives:** build drawers, dialogs, menus, selects and popovers on `bits-ui`, styled with the `bf-*` recipes (`src/lib/styles/bf.css`) and theme classes. Toasts: `toast` from `#lib/toast.ts`.
-- **Form actions with `use:enhance`:** SvelteKit 3 navigates to the action URL after the result, which drops the current `?search`. Call `await update({ navigate: false })` in the callback on list pages. `goto` takes `{ replace, reset }` (no `keepFocus` / `noScroll`).
+- **Form actions with `use:enhance`:** SvelteKit 3 navigates to the action URL after the result, which drops the current `?search`. For simple `{ done }` / `fail(400, { error })` actions use `use:enhance={refreshThenToast()}` from `#lib/enhance.ts` (stays on the URL, reloads data, then toasts); for confirmations use `ConfirmDialog`. `goto` takes `{ replace, reset }` (no `keepFocus` / `noScroll`).
+- **Route IDs include groups:** `resolve('/(app)/clients/[id]', { id })`; a `?query` may be appended inside the route string.
+- **Shared form pieces:** `Field` (label + inline error), `ClientFormDrawer`, server `saveClientForm` / `runSimpleAction` in `#lib/server/forms.ts`, `FormMessage` type in `#lib/schemas/message.ts`.
 - **Superforms 3:** `superValidate(request, zod4(schema))` with `zod4` from `sveltekit-superforms/adapters` (Zod 4). `valibot` is installed only because the adapters entry imports it. Pass `untrack(() => data.form)` to `superForm`. Its return values are stores (`$form`, `$errors`); that is fine.
 
 ## Database notes

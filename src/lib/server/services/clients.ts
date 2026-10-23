@@ -1,5 +1,5 @@
 // Client list, create / edit and archive. Relative imports only: shared with Trigger.dev tasks.
-import { and, asc, desc, eq, isNotNull, isNull, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn, AnyPgTable } from 'drizzle-orm/pg-core';
 import type { ClientStatus, Industry } from '../../constants';
 import { dayKeyWib } from '../../format';
@@ -228,11 +228,65 @@ export async function restoreClient(db: DbOrTx, id: string, userId: string) {
 	});
 }
 
-/** Used by the list to show "x klien" without filters */
-export async function countClients(db: DbOrTx) {
-	const [{ n }] = await db
-		.select({ n: sql<number>`count(*)::int` })
+/** One client with owner and primary contact, for the detail page. Archived clients included. */
+export async function getClient(db: DbOrTx, id: string) {
+	const [row] = await db
+		.select({
+			id: client.id,
+			name: client.name,
+			industry: client.industry,
+			status: client.status,
+			source: client.source,
+			city: client.city,
+			address: client.address,
+			website: client.website,
+			npwp: client.npwp,
+			notes: client.notes,
+			ownerId: client.ownerId,
+			ownerName: user.name,
+			archivedAt: client.archivedAt,
+			createdAt: client.createdAt,
+			openDeals,
+			activeProjects
+		})
 		.from(client)
-		.where(and(isNull(client.archivedAt), ne(client.status, 'archived')));
-	return n;
+		.leftJoin(user, eq(user.id, client.ownerId))
+		.where(eq(client.id, id));
+	return row ?? null;
+}
+
+export type ClientDetail = NonNullable<Awaited<ReturnType<typeof getClient>>>;
+
+/** All deals of a client: open ones first, newest stage change first */
+export function listClientDeals(db: DbOrTx, clientId: string) {
+	return db
+		.select({
+			id: deal.id,
+			title: deal.title,
+			stage: deal.stage,
+			serviceType: deal.serviceType,
+			valueEstimate: deal.valueEstimate,
+			expectedClose: deal.expectedClose,
+			stageChangedAt: deal.stageChangedAt,
+			lostReason: deal.lostReason
+		})
+		.from(deal)
+		.where(eq(deal.clientId, clientId))
+		.orderBy(sql`${deal.stage} in ('won', 'lost')`, desc(deal.stageChangedAt));
+}
+
+export function listClientProjects(db: DbOrTx, clientId: string) {
+	return db
+		.select({
+			id: project.id,
+			name: project.name,
+			stage: project.stage,
+			serviceType: project.serviceType,
+			contractValue: project.contractValue,
+			startDate: project.startDate,
+			targetEndDate: project.targetEndDate
+		})
+		.from(project)
+		.where(eq(project.clientId, clientId))
+		.orderBy(sql`${project.stage} = 'done'`, desc(project.stageChangedAt));
 }

@@ -93,7 +93,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - Drawer form (Superforms + Zod) for create/edit. Archive action.
 - **Done when:** clients can be added, edited, archived and searched. Validation errors show inline.
 
-### [ ] P1-04 Client detail + contacts + activity timeline
+### [x] P1-04 Client detail + contacts + activity timeline
 
 **Depends:** P1-03
 
