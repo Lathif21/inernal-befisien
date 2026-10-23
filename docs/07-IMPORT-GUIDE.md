@@ -4,23 +4,23 @@ The current client data is in plain notes. The fastest path is to put it into `i
 
 ## Columns
 
-| Column             | Required                | Allowed values / format                                                     | Example                       |
-| ------------------ | ----------------------- | --------------------------------------------------------------------------- | ----------------------------- |
-| `client_name`      | ✔                       | text                                                                        | PT Sinar Energi Nusantara     |
-| `industry`         |                         | manufacturing, energy, logistics, finance, education, other                 | energy                        |
-| `city`             |                         | text                                                                        | Surabaya                      |
-| `source`           |                         | website, referral, apollo, event, existing_network, other                   | referral                      |
-| `contact_name`     |                         | text                                                                        | Budi Santoso                  |
-| `contact_position` |                         | text                                                                        | Direktur Operasional          |
-| `contact_phone`    |                         | any format. Normalised to `628…`.                                           | 0812-3456-7890                |
-| `contact_email`    |                         | email                                                                       | budi@sinarenergi.co.id        |
-| `deal_title`       |                         | text. Leave empty if there is no open opportunity.                          | AI Monitoring PLTS            |
-| `service_type`     |                         | ai_agent, automation, integration, dashboard_app, web_cms, energy_ai, other | energy_ai                     |
-| `deal_stage`       | if `deal_title` is set  | lead, contacted, meeting, proposal, negotiation, won, lost                  | proposal                      |
-| `deal_value`       |                         | number only, no dots or "Rp"                                                | 85000000                      |
-| `next_action`      |                         | text. Becomes the first step of the deal.                                   | Follow up proposal via WA     |
-| `next_action_due`  | if `next_action` is set | YYYY-MM-DD or YYYY-MM-DD HH:MM (WIB)                                        | 2026-10-24 10:00              |
-| `notes`            |                         | free text (keep it on one line, or wrap it in quotes)                       | Kenalan dari pameran MFS 2026 |
+| Column             | Required                | Allowed values / format                                                                                                           | Example                       |
+| ------------------ | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `client_name`      | ✔                       | text                                                                                                                              | PT Sinar Energi Nusantara     |
+| `industry`         |                         | manufacturing, energy, logistics, finance, education, other                                                                       | energy                        |
+| `city`             |                         | text                                                                                                                              | Surabaya                      |
+| `source`           |                         | website, referral, apollo, event, existing_network, other                                                                         | referral                      |
+| `contact_name`     |                         | text                                                                                                                              | Budi Santoso                  |
+| `contact_position` |                         | text                                                                                                                              | Direktur Operasional          |
+| `contact_phone`    |                         | any format. Normalised to `628…`.                                                                                                 | 0812-3456-7890                |
+| `contact_email`    |                         | email                                                                                                                             | budi@sinarenergi.co.id        |
+| `deal_title`       |                         | text. Leave empty if there is no open opportunity.                                                                                | AI Monitoring PLTS            |
+| `service_type`     |                         | ai_agent, automation, integration, dashboard_app, web_cms, energy_ai, other                                                       | energy_ai                     |
+| `deal_stage`       | if `deal_title` is set  | lead, contacted, meeting, proposal, negotiation, won, lost                                                                        | proposal                      |
+| `deal_value`       |                         | number only, no dots or "Rp"                                                                                                      | 85000000                      |
+| `next_action`      |                         | text. Becomes the first step of the deal.                                                                                         | Follow up proposal via WA     |
+| `next_action_due`  | if `next_action` is set | YYYY-MM-DD or YYYY-MM-DD HH:MM (WIB). Excel dates such as 24/10/2026 10:00 are read too; an ambiguous one (03/04/2026) is refused | 2026-10-24 10:00              |
+| `notes`            |                         | free text (keep it on one line, or wrap it in quotes)                                                                             | Kenalan dari pameran MFS 2026 |
 
 ## Rules the importer applies
 

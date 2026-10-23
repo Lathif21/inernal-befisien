@@ -106,7 +106,9 @@
 				<p class="mt-2 max-w-3xl font-mono text-[12.5px] text-ink-2">{IMPORT_COLUMNS.join(', ')}</p>
 				<p class="mt-1 max-w-3xl text-ink-2">
 					Wajib: <b>client_name</b>; <b>deal_stage</b> jika ada deal_title;
-					<b>next_action_due</b> (YYYY-MM-DD atau YYYY-MM-DD HH:MM, WIB) jika ada next_action.
+					<b>next_action_due</b> (YYYY-MM-DD atau YYYY-MM-DD HH:MM, WIB; format Excel seperti 24/10/2026
+					10:00 juga bisa) jika ada next_action. Nomor telepon: tulis dengan tanda strip agar Excel tidak
+					mengubahnya.
 				</p>
 			</details>
 		</div>

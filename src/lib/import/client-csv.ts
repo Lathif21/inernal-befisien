@@ -77,12 +77,43 @@ export type ParsedFile = {
 
 /** Byte order mark that Excel puts in front of "CSV UTF-8" files */
 const BOM = String.fromCharCode(0xfeff);
-const DUE = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?$/;
-const isRealDay = (d: string) => {
-	const [y, m, day] = d.split('-').map(Number);
+const ISO_DUE = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2})[:.](\d{2}))?$/;
+/** What Excel writes after opening the file: 10/24/2026 10:00 (US) or 24/10/2026 10.00 (ID) */
+const SLASH_DUE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2})[:.](\d{2})(?::\d{2})?)?$/;
+const isRealDay = (y: number, m: number, day: number) => {
 	const t = new Date(Date.UTC(y, m - 1, day));
 	return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === day;
 };
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * next_action_due → WIB wall time `yyyy-MM-ddTHH:mm` (date only = 09:00). Slash dates are read
+ * day/month or month/day when only one reading is possible; 03/04/2026 is refused as ambiguous.
+ */
+export function parseDue(text: string): { due: string } | { error: string } {
+	const formats = 'YYYY-MM-DD atau YYYY-MM-DD HH:MM';
+	let y: number, mo: number, d: number, h: number, mi: number;
+	const iso = ISO_DUE.exec(text);
+	const slash = SLASH_DUE.exec(text);
+	if (iso) {
+		[y, mo, d] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+		[h, mi] = [Number(iso[4] ?? 9), Number(iso[5] ?? 0)];
+	} else if (slash) {
+		const [a, b] = [Number(slash[1]), Number(slash[2])];
+		y = Number(slash[3]);
+		if (a > 12 && b <= 12) [d, mo] = [a, b];
+		else if (b > 12 && a <= 12) [mo, d] = [a, b];
+		else if (a === b) [d, mo] = [a, b];
+		else
+			return {
+				error: `next_action_due "${text}" bisa dibaca dua cara (${a}/${b}). Tulis sebagai ${y}-${pad(b)}-${pad(a)} atau ${y}-${pad(a)}-${pad(b)}.`
+			};
+		[h, mi] = [Number(slash[4] ?? 9), Number(slash[5] ?? 0)];
+	} else return { error: `next_action_due "${text}" harus ${formats}.` };
+	if (!isRealDay(y, mo, d) || h > 23 || mi > 59)
+		return { error: `next_action_due "${text}" bukan tanggal yang valid (${formats}).` };
+	return { due: `${y}-${pad(mo)}-${pad(d)}T${pad(h)}:${pad(mi)}` };
+}
 const email = z.email();
 
 /** "Rp 85.000.000" / "85 000 000" / "85000000" → 85000000; anything else → NaN */
@@ -125,7 +156,11 @@ function validate(raw: Partial<Record<Column, string>>): Omit<ParsedLine, 'line'
 	const contactFields = ['contact_position', 'contact_phone', 'contact_email'] as const;
 	if (v('contact_name')) {
 		if (v('contact_name').length < 2) errors.push('contact_name minimal 2 karakter.');
-		if (v('contact_phone') && !phoneNormalize(v('contact_phone')))
+		if (/e\+/i.test(v('contact_phone')))
+			errors.push(
+				`contact_phone "${v('contact_phone')}" diubah Excel menjadi angka ilmiah. Format kolom sebagai Teks, atau tulis dengan tanda strip (0812-3456-7890).`
+			);
+		else if (v('contact_phone') && !phoneNormalize(v('contact_phone')))
 			errors.push(`contact_phone "${v('contact_phone')}" bukan nomor yang valid.`);
 		if (v('contact_email') && !email.safeParse(lower('contact_email')).success)
 			errors.push(`contact_email "${v('contact_email')}" bukan email yang valid.`);
@@ -143,13 +178,12 @@ function validate(raw: Partial<Record<Column, string>>): Omit<ParsedLine, 'line'
 	let deal: ImportRow['deal'] = null;
 	let nextAction: { title: string; due: string } | null = null;
 	if (v('next_action')) {
-		const m = DUE.exec(v('next_action_due'));
 		if (!v('next_action_due')) errors.push('next_action_due wajib diisi jika ada next_action.');
-		else if (!m || !isRealDay(m[1]) || Number(m[2] ?? 0) > 23 || Number(m[3] ?? 0) > 59)
-			errors.push(
-				`next_action_due "${v('next_action_due')}" harus YYYY-MM-DD atau YYYY-MM-DD HH:MM.`
-			);
-		else nextAction = { title: v('next_action'), due: `${m[1]}T${m[2] ?? '09'}:${m[3] ?? '00'}` };
+		else {
+			const due = parseDue(v('next_action_due'));
+			if ('error' in due) errors.push(due.error);
+			else nextAction = { title: v('next_action'), due: due.due };
+		}
 		if (v('next_action').length < 3) errors.push('next_action minimal 3 karakter.');
 	}
 	if (v('deal_title')) {
