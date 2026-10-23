@@ -59,6 +59,7 @@ Goal: an empty but deployed, branded app where the 2 admins can log in.
 - Production Neon `main` migrated. Admin users created.
 - **Done when:** `https://crm.befisien.com` serves the app over HTTPS and survives a VPS reboot.
 - _Note: staging is live on Vercel first (https://befisien-crm.vercel.app, project `befisien/befisien-crm`, functions in `cle1`) against Neon `long-truth-57557441` / branch `production` (aws us-east-2, migrated, admin created). The VPS deploy is still open._
+- _Decision (24 Okt 2026): the Vercel deployment is production for now and holds the real data; the VPS is deferred. Optional: point `crm.befisien.com` at Vercel (one DNS record). Note: Vercel's free Hobby plan is for non-commercial use; a company tool belongs on Pro. When moving to the VPS, keep the same Neon branch and re-run Telegram `setWebhook` with the new URL (CLAUDE.md "Telegram + digest")._
 
 ---
 
