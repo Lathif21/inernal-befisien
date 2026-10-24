@@ -4,7 +4,17 @@ import { and, eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import type { AiComplete, AiRequest } from '../ai/client';
 import { createDb, type Tx } from '../db/client';
-import { action, activity, aiSuggestion, client, user } from '../db/schema/index';
+import {
+	action,
+	activity,
+	aiSuggestion,
+	category,
+	client,
+	contact,
+	project,
+	transaction,
+	user
+} from '../db/schema/index';
 import { clientSchema } from '../../schemas/client';
 import { dealSchema } from '../../schemas/deal';
 import { stepSchema } from '../../schemas/step';
@@ -111,6 +121,76 @@ describe.skipIf(!isDevDb)('AI suggestions (dev database, fake model)', { timeout
 			);
 			expect((await buildClientContext(tx, clientId)).hash).not.toBe(a.hash);
 			expect(await activeClientIds(tx)).toContain(clientId);
+		});
+	});
+
+	it('shows planned payments, unscheduled contract, unlinked payments and contacts', async () => {
+		await inRollback(async (tx, userId) => {
+			const { clientId } = await setup(tx, userId);
+			const [p] = await tx
+				.insert(project)
+				.values({
+					clientId,
+					name: 'Sistem Akademik',
+					stage: 'maintenance',
+					position: 'a0',
+					contractValue: 13_000_000
+				})
+				.returning();
+			const [cat] = await tx
+				.insert(category)
+				.values({ type: 'income', name: 'ZZ AI Termin' })
+				.returning();
+			const txn = (fields: Partial<typeof transaction.$inferInsert>) => ({
+				type: 'income' as const,
+				status: 'paid' as const,
+				clientId,
+				categoryId: cat.id,
+				date: '2026-09-19',
+				amount: 1,
+				...fields
+			});
+			await tx
+				.insert(transaction)
+				.values([
+					txn({ projectId: p.id, amount: 2_200_000, description: 'DP' }),
+					txn({ projectId: p.id, status: 'planned', date: '2027-01-31', amount: 3_000_000 }),
+					txn({ amount: 3_000_000, date: '2026-09-28', description: 'DP tanpa proyek' }),
+					txn({ status: 'cancelled', amount: 9_000_000 })
+				]);
+			await tx.insert(contact).values({
+				clientId,
+				name: 'Dimas',
+				position: 'Direktur',
+				phone: '6281234567890',
+				email: 'dimas@example.com',
+				isPrimary: true
+			});
+
+			const { facts } = await buildClientContext(tx, clientId);
+			expect(facts.proyek_berjalan[0]).toMatchObject({
+				sudah_dibayar_rp: 2_200_000,
+				pembayaran_direncanakan_rp: 3_000_000,
+				belum_dijadwalkan_rp: 7_800_000
+			});
+			expect(facts.transaksi_direncanakan).toEqual([
+				expect.objectContaining({
+					tanggal: '2027-01-31',
+					status: 'Direncanakan',
+					jumlah_rp: 3_000_000,
+					kategori: 'ZZ AI Termin',
+					proyek: 'Sistem Akademik'
+				})
+			]);
+			// Newest first; the cancelled one is left out
+			expect(facts.transaksi_dibayar_terakhir).toMatchObject([
+				{ tanggal: '2026-09-28', keterangan: 'DP tanpa proyek', proyek: null },
+				{ tanggal: '2026-09-19', jumlah_rp: 2_200_000, proyek: 'Sistem Akademik' }
+			]);
+			expect(facts.kontak).toEqual([{ nama: 'Dimas', jabatan: 'Direktur', utama: true }]);
+			const sent = JSON.stringify(facts);
+			expect(sent).not.toContain('6281234567890');
+			expect(sent).not.toContain('dimas@example.com');
 		});
 	});
 

@@ -18,6 +18,7 @@ tim menutup deal, menjaga proyek tetap jalan, dan menagih pembayaran tepat waktu
   paling lambat 14 hari ke depan, pada hari kerja (Senin-Jumat) jam 08:00-17:00. Isi string
   kosong "" hanya jika waktu benar-benar tidak penting.
 - Jangan mengulang langkah yang sudah terjadwal atau saran yang masih terbuka (ada di data).
+- Sebut nama orang hanya dari \`kontak\`, PIC langkah, atau isi aktivitas.
 - Jenis saran (\`kind\`):
   - "risk": sesuatu bisa gagal atau terlambat (langkah terlambat, deal diam lama, pembayaran tertunda).
   - "opportunity": peluang menambah nilai (upsell, deal lanjutan, referensi).
@@ -27,7 +28,21 @@ tim menutup deal, menjaga proyek tetap jalan, dan menagih pembayaran tepat waktu
   Kalimat ini dipakai langsung sebagai judul langkah di CRM.
 - Lebih baik 0-1 saran yang tepat daripada 3 saran yang lemah. Kembalikan daftar kosong jika
   tidak ada yang perlu dilakukan.
-- Ini hanya saran. Anda tidak mengubah data apa pun.`;
+- Ini hanya saran. Anda tidak mengubah data apa pun.
+
+## Cara membaca data keuangan
+
+- \`transaksi_direncanakan\` adalah pembayaran yang SUDAH dijadwalkan di menu Keuangan (tanggal =
+  perkiraan tanggal bayar). Jangan sebut pembayaran itu belum dijadwalkan atau belum direncanakan.
+- Per proyek, \`belum_dijadwalkan_rp\` = \`nilai_kontrak_rp\` dikurangi \`sudah_dibayar_rp\` dan
+  \`pembayaran_direncanakan_rp\`. Hanya \`belum_dijadwalkan_rp\` > 0 yang berarti ada sisa kontrak tanpa
+  jadwal pembayaran; sebut angkanya.
+- Sarankan menagih atau mengingatkan pembayaran hanya jika tanggalnya sudah lewat atau paling
+  lambat 14 hari lagi. Pembayaran yang masih jauh tidak perlu ditindaklanjuti sekarang.
+- Transaksi dengan \`proyek\` null tidak terhitung di \`sudah_dibayar_rp\` proyek mana pun. Jika
+  jelas milik sebuah proyek, sarankan menghubungkannya ke proyek itu di Keuangan (jenis "pipeline"),
+  dengan menyebut tanggal, kategori, dan jumlahnya.
+- \`invoice\` berisi invoice yang tidak dibatalkan; "Jatuh tempo" berarti belum dibayar lewat tanggal.`;
 
 /** JSON Schema of the answer (strict structured output). Plain strings, "" = none: some models
     behind the gateway (MiniMax) reject nullable type lists. */

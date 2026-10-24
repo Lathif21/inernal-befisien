@@ -2,12 +2,27 @@
 // Trigger.dev tasks run this. The AI only suggests: nothing is written to deals, plans or steps
 // until a person accepts a suggestion.
 import { createHash } from 'node:crypto';
-import { and, asc, desc, eq, inArray, isNull, lt, ne, notInArray, sql } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	lt,
+	ne,
+	notInArray,
+	sql
+} from 'drizzle-orm';
 import { z } from 'zod';
 import {
 	AI_KINDS,
 	DEAL_STAGE_META,
+	INVOICE_STATUS_LABELS,
 	PROJECT_STAGE_META,
+	TXN_STATUS_LABELS,
+	TXN_TYPE_LABELS,
 	type DealStage,
 	type ProjectStage
 } from '../../constants';
@@ -21,8 +36,11 @@ import {
 	action,
 	activity,
 	aiSuggestion,
+	category,
 	client,
+	contact,
 	deal,
+	invoice,
 	project,
 	strategyPlan,
 	transaction,
@@ -36,11 +54,23 @@ import { paidIncome } from './projects';
 /** Untouched suggestions expire after this many days (docs/02-DATA-MODEL.md) */
 export const SUGGESTION_TTL_DAYS = 7;
 const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+/** How much history the prompt carries (planned payments are always all there, up to the cap) */
+const PAID_TXN_LIMIT = 20;
+const PLANNED_TXN_LIMIT = 20;
+const INVOICE_LIMIT = 10;
+const HISTORY_LIMIT = 5;
 
 /** "2026-10-24 10:00" in WIB; all-day steps as a date only */
 const wib = (d: Date | null, allDay = false) =>
 	d ? (allDay ? dateToWibLocal(d).slice(0, 10) : dateToWibLocal(d).replace('T', ' ')) : null;
 const cut = (s: string | null, n: number) => (s && s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/** Planned income of the outer `project` row (the Keuangan "Direncanakan" rows) */
+const plannedIncome = sql<number>`coalesce((
+	select sum("transaction"."amount") from ${transaction}
+	where "transaction"."project_id" = "project"."id"
+		and "transaction"."type" = 'income' and "transaction"."status" = 'planned'
+), 0)::bigint`.mapWith(Number);
 
 // ---------- context ----------
 
@@ -80,7 +110,20 @@ export async function buildClientContext(db: DbOrTx, clientId: string) {
 		.where(eq(client.id, clientId));
 	if (!c) throw new ServiceError('Klien tidak ditemukan.');
 
-	const [deals, projects, plans, steps, recent, money, open] = await Promise.all([
+	const [
+		deals,
+		projects,
+		plans,
+		steps,
+		recent,
+		money,
+		open,
+		contacts,
+		txns,
+		invoices,
+		closedDeals,
+		finishedProjects
+	] = await Promise.all([
 		db
 			.select({
 				id: deal.id,
@@ -100,6 +143,7 @@ export async function buildClientContext(db: DbOrTx, clientId: string) {
 				stage: project.stage,
 				contractValue: project.contractValue,
 				paid: paidIncome,
+				planned: plannedIncome,
 				startDate: project.startDate,
 				targetEndDate: project.targetEndDate,
 				stageChangedAt: project.stageChangedAt
@@ -164,8 +208,78 @@ export async function buildClientContext(db: DbOrTx, clientId: string) {
 		db
 			.select({ kind: aiSuggestion.kind, action: aiSuggestion.proposedAction })
 			.from(aiSuggestion)
-			.where(and(eq(aiSuggestion.clientId, clientId), eq(aiSuggestion.status, 'new')))
+			.where(and(eq(aiSuggestion.clientId, clientId), eq(aiSuggestion.status, 'new'))),
+		// Names and roles only: phone numbers and emails are not sent to the model
+		db
+			.select({ name: contact.name, position: contact.position, isPrimary: contact.isPrimary })
+			.from(contact)
+			.where(eq(contact.clientId, clientId))
+			.orderBy(desc(contact.isPrimary), asc(contact.name)),
+		db
+			.select({
+				date: transaction.date,
+				type: transaction.type,
+				status: transaction.status,
+				amount: transaction.amount,
+				description: transaction.description,
+				category: category.name,
+				project: project.name,
+				invoice: invoice.number
+			})
+			.from(transaction)
+			.leftJoin(category, eq(category.id, transaction.categoryId))
+			.leftJoin(project, eq(project.id, transaction.projectId))
+			.leftJoin(invoice, eq(invoice.id, transaction.invoiceId))
+			.where(and(eq(transaction.clientId, clientId), ne(transaction.status, 'cancelled')))
+			.orderBy(desc(transaction.date), desc(transaction.createdAt), desc(transaction.id)),
+		db
+			.select({
+				number: invoice.number,
+				status: invoice.status,
+				issueDate: invoice.issueDate,
+				dueDate: invoice.dueDate,
+				total: invoice.total,
+				project: project.name
+			})
+			.from(invoice)
+			.leftJoin(project, eq(project.id, invoice.projectId))
+			.where(and(eq(invoice.clientId, clientId), ne(invoice.status, 'void')))
+			.orderBy(desc(invoice.issueDate), desc(invoice.number))
+			.limit(INVOICE_LIMIT),
+		db
+			.select({
+				title: deal.title,
+				stage: deal.stage,
+				value: deal.valueEstimate,
+				lostReason: deal.lostReason,
+				wonAt: deal.wonAt,
+				lostAt: deal.lostAt
+			})
+			.from(deal)
+			.where(and(eq(deal.clientId, clientId), inArray(deal.stage, ['won', 'lost'])))
+			.orderBy(desc(deal.stageChangedAt))
+			.limit(HISTORY_LIMIT),
+		db
+			.select({
+				name: project.name,
+				contractValue: project.contractValue,
+				paid: paidIncome,
+				finishedAt: project.finishedAt
+			})
+			.from(project)
+			.where(
+				and(
+					eq(project.clientId, clientId),
+					eq(project.stage, 'done'),
+					isNotNull(project.finishedAt)
+				)
+			)
+			.orderBy(desc(project.finishedAt))
+			.limit(HISTORY_LIMIT)
 	]);
+
+	const planned = txns.filter((t) => t.status === 'planned').slice(-PLANNED_TXN_LIMIT);
+	const paid = txns.filter((t) => t.status === 'paid').slice(0, PAID_TXN_LIMIT);
 
 	const stepsOf = (ref: { dealId?: string; projectId?: string }) => {
 		const mine = steps.filter((s) =>
@@ -207,6 +321,10 @@ export async function buildClientContext(db: DbOrTx, clientId: string) {
 			di_tahap_ini_sejak: wib(p.stageChangedAt),
 			nilai_kontrak_rp: p.contractValue,
 			sudah_dibayar_rp: p.paid,
+			pembayaran_direncanakan_rp: p.planned,
+			// Contract left with neither a payment nor a planned one in Keuangan
+			belum_dijadwalkan_rp:
+				p.contractValue == null ? null : Math.max(0, p.contractValue - p.paid - p.planned),
 			mulai: p.startDate,
 			target_selesai: p.targetEndDate,
 			...stepsOf({ projectId: p.id })
@@ -227,7 +345,32 @@ export async function buildClientContext(db: DbOrTx, clientId: string) {
 			pengeluaran_dibayar_rp: money[0]?.paidOut ?? 0,
 			pemasukan_direncanakan_rp: money[0]?.plannedIn ?? 0,
 			pemasukan_direncanakan_berikutnya: money[0]?.nextPlanned ?? null
-		}
+		},
+		// Oldest planned first (what is due next), newest paid first
+		transaksi_direncanakan: [...planned].reverse().map(txnFact),
+		transaksi_dibayar_terakhir: paid.map(txnFact),
+		invoice: invoices.map((i) => ({
+			nomor: i.number,
+			status: INVOICE_STATUS_LABELS[i.status],
+			terbit: i.issueDate,
+			jatuh_tempo: i.dueDate,
+			total_rp: i.total,
+			proyek: i.project
+		})),
+		kontak: contacts.map((k) => ({ nama: k.name, jabatan: k.position, utama: k.isPrimary })),
+		deal_selesai_terakhir: closedDeals.map((d) => ({
+			judul: d.title,
+			hasil: DEAL_STAGE_META[d.stage as DealStage].label,
+			tanggal: wib(d.wonAt ?? d.lostAt, true),
+			nilai_rp: d.value,
+			alasan_kalah: cut(d.lostReason, 200)
+		})),
+		proyek_selesai_terakhir: finishedProjects.map((p) => ({
+			nama: p.name,
+			selesai: wib(p.finishedAt, true),
+			nilai_kontrak_rp: p.contractValue,
+			sudah_dibayar_rp: p.paid
+		}))
 	};
 	const hash = createHash('sha256').update(JSON.stringify(facts)).digest('hex');
 	const targets = new Map<string, CardRef>([
@@ -241,6 +384,31 @@ export async function buildClientContext(db: DbOrTx, clientId: string) {
 		targets,
 		/** Open suggestions go to the prompt (no repeats) but not into the hash */
 		openSuggestions: open.map((o) => ({ jenis: o.kind, tindakan: o.action }))
+	};
+}
+
+type TxnRow = {
+	date: string;
+	type: 'income' | 'expense';
+	status: string;
+	amount: number;
+	description: string | null;
+	category: string | null;
+	project: string | null;
+	invoice: string | null;
+};
+
+/** One Keuangan row as the AI sees it; `proyek` null = not linked to a project */
+function txnFact(t: TxnRow) {
+	return {
+		tanggal: t.date,
+		jenis: TXN_TYPE_LABELS[t.type].long,
+		status: TXN_STATUS_LABELS[t.status as keyof typeof TXN_STATUS_LABELS],
+		jumlah_rp: t.amount,
+		kategori: t.category,
+		keterangan: cut(t.description, 120),
+		proyek: t.project,
+		invoice: t.invoice
 	};
 }
 
