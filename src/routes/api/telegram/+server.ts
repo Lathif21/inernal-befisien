@@ -14,6 +14,10 @@ import {
 	MAX_VOICE_SECONDS
 } from '#lib/server/services/telegram-input.ts';
 import { linkedUser, linkTelegram, unlinkTelegram } from '#lib/server/services/telegram-link.ts';
+import {
+	acceptSuggestionFromChat,
+	dismissSuggestionFromChat
+} from '#lib/server/services/telegram-strategy.ts';
 import { queueTelegramInbound } from '#lib/server/trigger.ts';
 import type { RequestHandler } from './$types';
 
@@ -39,7 +43,8 @@ const HOW_TO =
 	'Untuk menghubungkan akun, buka Befisien CRM → Pengaturan → Telegram, lalu klik <b>Hubungkan Telegram</b>.';
 
 const appUrl = BETTER_AUTH_URL ?? 'http://localhost:5173';
-const DRAFT_BUTTON = /^([sc]):([0-9a-f-]{36})$/;
+// s / c: Simpan / Batal a draft or a strategy proposal; a / d: Terima / Abaikan a Saran AI
+const DRAFT_BUTTON = /^([scad]):([0-9a-f-]{36})$/;
 
 async function onButton(q: NonNullable<Update['callback_query']>) {
 	const answer = (text: string) =>
@@ -49,10 +54,18 @@ async function onButton(q: NonNullable<Update['callback_query']>) {
 	if (!msg || msg.chat.type !== 'private' || !m) return answer('Tombol ini tidak dikenal.');
 
 	const chatId = String(msg.chat.id);
-	if (!(await linkedUser(db, chatId))) return answer('Chat ini belum terhubung ke Befisien CRM.');
+	const sender = await linkedUser(db, chatId);
+	if (!sender) return answer('Chat ini belum terhubung ke Befisien CRM.');
 	const input = { draftId: m[2], chatId };
+	const suggestion = { suggestionId: m[2], userId: sender.id };
 	const result =
-		m[1] === 's' ? await confirmDraft(db, { ...input, appUrl }) : await cancelDraft(db, input);
+		m[1] === 's'
+			? await confirmDraft(db, { ...input, appUrl })
+			: m[1] === 'c'
+				? await cancelDraft(db, input)
+				: m[1] === 'a'
+					? await acceptSuggestionFromChat(db, suggestion)
+					: await dismissSuggestionFromChat(db, suggestion);
 	if (result.html)
 		await editTelegramMessage(TELEGRAM_BOT_TOKEN ?? '', chatId, msg.message_id, result.html).catch(
 			(e) => console.warn('[telegram] edit failed:', String(e))

@@ -18,7 +18,15 @@ const choices = (values: readonly string[], labels: Record<string, string>) =>
 
 const STAGE_LABELS = Object.fromEntries(DEAL_STAGES.map((s) => [s, DEAL_STAGE_META[s].label]));
 
-export const INPUT_INTENTS = ['lead', 'step', 'move', 'plan', 'note', 'unknown'] as const;
+export const INPUT_INTENTS = [
+	'lead',
+	'step',
+	'move',
+	'plan',
+	'note',
+	'strategy',
+	'unknown'
+] as const;
 export type InputIntent = (typeof INPUT_INTENTS)[number];
 
 export const INPUT_SYSTEM = `Anda adalah asisten input data untuk CRM Befisien Technologies (software house di Indonesia).
@@ -46,6 +54,11 @@ menjadi SATU draf data. Pengirim memeriksa draf lalu menekan Simpan; Anda tidak 
   "2026-10-26T10:00 | Kirim build UAT".
 - "note": catatan, hasil telepon, meeting, WhatsApp atau email dengan klien yang sudah ada
   (target = ref klien, deal atau proyek; note_type, note_body).
+- "strategy": pengirim BERTANYA atau ingin berdiskusi tentang strategi, rencana, status, risiko
+  atau langkah selanjutnya untuk satu klien yang sudah ada ("strategi untuk IMR?", "gimana
+  rencana kita di Sinar Jaya?", "apa yang harus kita lakukan dengan Pena?"). target = ref klien
+  (K…), atau deal / proyek (D…, P…) jika disebut. Bukan "plan": "plan" berarti pengirim
+  MENDIKTEKAN rencana beserta langkahnya untuk dicatat.
 - "unknown": pesan tidak berisi data untuk dicatat, atau terlalu tidak jelas. Tulis jawaban singkat
   di reply, misalnya apa yang kurang.
 

@@ -47,6 +47,15 @@ import { moveDeal } from './deals';
 import { ServiceError } from './errors';
 import { importRows } from './import';
 import { addPlanStep, createPlan } from './plans';
+import {
+	applyStrategyProposal,
+	closeStrategyChat,
+	openStrategyChat,
+	proposalHtml,
+	runStrategyTurn,
+	STRATEGY,
+	type StrategyChat
+} from './telegram-strategy';
 
 /** A draft can be saved for this long */
 export const DRAFT_MINUTES = 30;
@@ -65,6 +74,7 @@ export const BOT_HELP = [
 	'• Deal Sinar Jaya masuk negosiasi',
 	'• Rencana Sinar Jaya: closing bulan ini. Langkah: kirim revisi proposal Senin, meeting harga Rabu jam 10',
 	'• Catatan telepon Sinar Jaya: minta diskon 10%, keputusan minggu depan',
+	'• Strategi untuk Sinar Jaya? (lalu tanya atau minta ubah usulannya di balasan berikutnya)',
 	'',
 	'Bot menyiapkan draf dulu. Data baru tersimpan setelah Anda menekan <b>Simpan</b>. Ada yang salah? Balas dengan koreksinya.',
 	'',
@@ -559,12 +569,15 @@ export type InboundDeps = {
 	/** Send to the payload's chat; returns the message id */
 	send: (html: string, buttons?: TelegramButton[]) => Promise<number>;
 	clearButtons: (messageId: number) => Promise<void>;
+	/** "typing…" in the chat while a slow answer is being prepared */
+	typing?: () => Promise<unknown>;
 };
 
 export type InboundResult =
 	| { status: 'not-linked' | 'empty' }
 	| { status: 'unclear'; problems: string[] }
-	| { status: 'draft'; draftId: string; kind: Draft['kind']; replaced: boolean };
+	| { status: 'draft'; draftId: string; kind: Draft['kind']; replaced: boolean }
+	| { status: 'strategy'; clientId: string; proposal: boolean };
 
 /** The open draft of this chat, if any (the newest pending one that has not expired) */
 async function openDraft(db: DbOrTx, chatId: string, now: Date) {
@@ -575,6 +588,7 @@ async function openDraft(db: DbOrTx, chatId: string, now: Date) {
 			and(
 				eq(telegramDraft.chatId, chatId),
 				eq(telegramDraft.status, 'pending'),
+				ne(telegramDraft.kind, STRATEGY),
 				gt(telegramDraft.expiresAt, now)
 			)
 		)
@@ -606,6 +620,21 @@ export async function processInbound(
 		return { status: 'empty' };
 	}
 
+	// An open strategy conversation answers follow-ups first; a message about something else
+	// ("leave") goes on to the normal input below
+	const chatRow = await openStrategyChat(db, payload.chatId, now);
+	if (chatRow) {
+		const chat = chatRow.payload as unknown as StrategyChat;
+		const turn = await runStrategyTurn(
+			db,
+			{ ...payload, clientId: chat.clientId, text: input, source, row: chatRow },
+			deps,
+			now
+		);
+		if (turn.status === 'answered')
+			return { status: 'strategy', clientId: chat.clientId, proposal: turn.proposal };
+	}
+
 	const [ctx, previous] = await Promise.all([
 		loadInputContext(db, now),
 		openDraft(db, payload.chatId, now)
@@ -615,6 +644,32 @@ export async function processInbound(
 		text: input,
 		previous: (previous?.answer as InputAnswer | undefined) ?? null
 	});
+	if (answer.intent === 'strategy') {
+		const clientId =
+			ctx.clients.find((c) => c.id === answer.target)?.id ??
+			ctx.cards.find((c) => c.id === answer.target)?.clientId;
+		if (!clientId) {
+			await deps.send(
+				quote(source, input) +
+					esc(answer.reply.trim() || 'Strategi untuk klien mana? Sebutkan nama kliennya.')
+			);
+			return { status: 'unclear', problems: ['client'] };
+		}
+		// Another client's conversation ends here
+		if (chatRow) await closeStrategyChat(db, chatRow, deps.clearButtons, now);
+		const turn = await runStrategyTurn(
+			db,
+			{ ...payload, clientId, text: input, source, row: null },
+			deps,
+			now
+		);
+		return {
+			status: 'strategy',
+			clientId,
+			proposal: turn.status === 'answered' && turn.proposal
+		};
+	}
+
 	const result = toDraft(answer, ctx);
 
 	const replaced = !!(answer.revises_previous && previous && answer.intent !== 'unknown');
@@ -810,6 +865,29 @@ export async function confirmDraft(
 				.for('update');
 			if (!d || d.chatId !== input.chatId || d.kind === QUESTION)
 				return { toast: 'Draf tidak ditemukan.' };
+			if (d.kind === STRATEGY) {
+				const chat = d.payload as unknown as StrategyChat;
+				if (d.status !== 'pending')
+					return {
+						toast:
+							d.status === 'saved' ? 'Usulan ini sudah disimpan.' : 'Percakapan ini sudah ditutup.'
+					};
+				if (!chat.proposal) return { toast: 'Belum ada usulan untuk disimpan.' };
+				if (d.expiresAt <= now)
+					return {
+						toast: 'Percakapan sudah kedaluwarsa.',
+						html: `${proposalHtml(chat.proposal)}\n\n<b>Kedaluwarsa.</b> Tanyakan strateginya lagi.`
+					};
+				const line = await applyStrategyProposal(tx, chat, d.userId);
+				await tx
+					.update(telegramDraft)
+					.set({ status: 'saved', decidedAt: now })
+					.where(eq(telegramDraft.id, d.id));
+				return {
+					toast: 'Tersimpan.',
+					html: `${proposalHtml(chat.proposal)}\n\n<b>${line}</b> ${appLink(input.appUrl, 'strategy', 'Buka Strategi')}`
+				};
+			}
 			const draft = d.payload as unknown as Draft;
 			if (d.status !== 'pending') return { toast: DECIDED[d.status] };
 			if (d.expiresAt <= now)
@@ -856,6 +934,13 @@ export async function cancelDraft(
 		return {
 			toast:
 				other && other.chatId === input.chatId ? DECIDED[other.status] : 'Draf tidak ditemukan.'
+		};
+	}
+	if (d.kind === STRATEGY) {
+		const chat = d.payload as unknown as StrategyChat;
+		return {
+			toast: 'Dibatalkan.',
+			html: `${chat.proposal ? proposalHtml(chat.proposal) : '<b>Strategi</b>'}\n\n<b>Dibatalkan.</b> Tidak ada yang disimpan; percakapan ditutup.`
 		};
 	}
 	return {

@@ -8,7 +8,8 @@ import { createDb } from '../lib/server/db/client';
 import {
 	clearTelegramButtons,
 	downloadTelegramFile,
-	sendTelegramMessage
+	sendTelegramMessage,
+	telegramCall
 } from '../lib/server/notify/telegram';
 import { processInbound, type InboundPayload } from '../lib/server/services/telegram-input';
 
@@ -16,7 +17,8 @@ const env = (name: string) => process.env[name] ?? '';
 
 export const telegramInbound = task({
 	id: 'telegram-inbound',
-	maxDuration: 180,
+	// A strategy turn alone can take a minute with a reasoning model
+	maxDuration: 300,
 	// No retry: a second attempt could send a second draft for the same message
 	retry: { maxAttempts: 1 },
 	run: async (payload: InboundPayload) => {
@@ -35,7 +37,9 @@ export const telegramInbound = task({
 				transcribe: groqTranscriber({ apiKey: env('GROQ_API_KEY') }),
 				download: (fileId) => downloadTelegramFile(token, fileId),
 				send,
-				clearButtons: (messageId) => clearTelegramButtons(token, payload.chatId, messageId)
+				clearButtons: (messageId) => clearTelegramButtons(token, payload.chatId, messageId),
+				typing: () =>
+					telegramCall(token, 'sendChatAction', { chat_id: payload.chatId, action: 'typing' })
 			});
 			logger.info('processed', { ...result, voice: !!payload.voice });
 			return result;
