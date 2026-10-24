@@ -32,6 +32,12 @@
 
 	let { open = $bindable(), deal, mode, errors = {}, onsubmit, oncancel }: Props = $props();
 
+	/** Setting `open` is not reported by bits-ui as a dismiss, so the board is told here */
+	function cancel() {
+		open = false;
+		oncancel();
+	}
+
 	let projectName = $state('');
 	let contractValue = $state<number | null>(null);
 	let startDate = $state('');
@@ -169,12 +175,7 @@
 				{busy === 'later' ? 'Menyimpan…' : 'Nanti saja'}
 			</button>
 		{:else}
-			<button
-				type="button"
-				class="bf-btn bf-btn--secondary"
-				disabled={!!busy}
-				onclick={() => (open = false)}
-			>
+			<button type="button" class="bf-btn bf-btn--secondary" disabled={!!busy} onclick={cancel}>
 				Batal
 			</button>
 		{/if}

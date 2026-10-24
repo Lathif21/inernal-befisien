@@ -12,6 +12,7 @@ import {
 	CLIENT_SORTS,
 	listClients,
 	listOwners,
+	deleteClient,
 	restoreClient
 } from '#lib/server/services/clients.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -60,5 +61,13 @@ export const actions: Actions = {
 			() => restoreClient(db, id.data, user.id),
 			'Klien dipulihkan dari arsip.'
 		);
+	},
+
+	/** Archived clients only, after the confirmation dialog; refused while money records exist */
+	delete: async ({ request, locals }) => {
+		requireUser(locals);
+		const id = idSchema.safeParse((await request.formData()).get('id'));
+		if (!id.success) return fail(400, { error: 'Klien tidak valid.' });
+		return runSimpleAction(() => deleteClient(db, id.data), 'Klien dihapus permanen.');
 	}
 };

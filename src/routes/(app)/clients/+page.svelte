@@ -11,6 +11,7 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
+	import Trash from '@lucide/svelte/icons/trash-2';
 	import Avatar from '#lib/components/Avatar.svelte';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import ClientFormDrawer from '#lib/components/clients/ClientFormDrawer.svelte';
@@ -39,6 +40,8 @@
 	// ---------- archive confirmation ----------
 	let archiveTarget = $state<ClientRow | null>(null);
 	let archiveOpen = $state(false);
+	let deleteTarget = $state<ClientRow | null>(null);
+	let deleteOpen = $state(false);
 	function askArchive(row: ClientRow) {
 		archiveTarget = row;
 		archiveOpen = true;
@@ -323,6 +326,18 @@
 														Pulihkan
 													</button>
 												</form>
+												<button
+													type="button"
+													class="bf-icon-btn text-danger!"
+													aria-label="Hapus {row.name}"
+													title="Hapus permanen"
+													onclick={() => {
+														deleteTarget = row;
+														deleteOpen = true;
+													}}
+												>
+													<Trash size={15} strokeWidth={1.75} />
+												</button>
 											{:else}
 												<button
 													type="button"
@@ -372,4 +387,17 @@
 >
 	<b class="text-ink">{archiveTarget?.name}</b> tidak tampil lagi di daftar dan board. Datanya tetap tersimpan
 	dan bisa dipulihkan dari filter Status → Diarsipkan.
+</ConfirmDialog>
+
+<ConfirmDialog
+	bind:open={deleteOpen}
+	title="Hapus klien permanen?"
+	action="?/delete"
+	fields={{ id: deleteTarget?.id ?? '' }}
+	confirmLabel="Hapus permanen"
+	tone="danger"
+>
+	<b class="text-ink">{deleteTarget?.name}</b> dihapus beserta kontak, deal, proyek, rencana, langkah,
+	dan riwayat aktivitasnya. Ini tidak bisa dibatalkan. Klien yang punya transaksi atau invoice tidak bisa
+	dihapus.
 </ConfirmDialog>

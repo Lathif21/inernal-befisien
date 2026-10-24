@@ -6,6 +6,7 @@ import { SERVICE_TYPES } from '#lib/constants.ts';
 import { nextActionState } from '#lib/next-action.ts';
 import { dealSchema, moveSchema, wonProjectSchema, type DealInput } from '#lib/schemas/deal.ts';
 import type { FormMessage } from '#lib/schemas/message.ts';
+import { stepFieldsFrom, stepSchema } from '#lib/schemas/step.ts';
 import { db } from '#lib/server/db/index.ts';
 import { requireUser } from '#lib/server/guards.ts';
 import { stepActions } from '#lib/server/step-actions.ts';
@@ -111,6 +112,14 @@ export const actions: Actions = {
 				fields: fieldErrors(move.error.issues)
 			});
 		}
+		// Reopening a won / lost card brings its next step (next.*), like completing a step does
+		let next = null;
+		if (typeof data['next.title'] === 'string') {
+			const step = stepSchema.safeParse(stepFieldsFrom(data, 'next.'));
+			if (!step.success)
+				return fail(400, { error: 'Periksa langkahnya.', fields: fieldErrors(step.error.issues) });
+			next = step.data;
+		}
 		let wonProject = null;
 		if (move.data.to === 'won' && move.data.createProject === 'yes') {
 			const p = wonProjectSchema.safeParse(data);
@@ -119,7 +128,7 @@ export const actions: Actions = {
 			wonProject = p.data;
 		}
 		try {
-			const { projectId } = await moveDeal(db, move.data, wonProject, user.id);
+			const { projectId } = await moveDeal(db, move.data, wonProject, user.id, next);
 			return { done: projectId ? 'Deal menang. Proyek dibuat.' : 'Deal dipindahkan.', projectId };
 		} catch (e) {
 			return serviceFailure(e);

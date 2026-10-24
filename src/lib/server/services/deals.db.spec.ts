@@ -3,9 +3,19 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { createDb, type Tx } from '../db/client';
-import { action, activity, client, deal, project, strategyPlan, user } from '../db/schema/index';
+import {
+	action,
+	activity,
+	client,
+	deal,
+	project,
+	strategyPlan,
+	transaction,
+	user
+} from '../db/schema/index';
 import { clientSchema } from '../../schemas/client';
 import { dealSchema, moveSchema, wonProjectSchema } from '../../schemas/deal';
+import { stepSchema } from '../../schemas/step';
 import { createClient } from './clients';
 import { createDeal, moveDeal } from './deals';
 import { ServiceError } from './errors';
@@ -184,10 +194,70 @@ describe.skipIf(!isDevDb)('deals service (dev database)', { timeout: 60_000 }, (
 			const [movedPlan] = await tx.select().from(strategyPlan).where(eq(strategyPlan.id, plan.id));
 			expect(movedPlan).toMatchObject({ projectId, dealId: ids[0] });
 
-			// a won deal with a project cannot go back to an open stage
+			// back out of Deal ✓ (human error): only with confirmation, and not once money is attached
+			const fieldOf = (p: Promise<unknown>) =>
+				p.then(
+					() => null,
+					(e) => (e instanceof ServiceError ? (e.field ?? e.message) : String(e))
+				);
+			expect(
+				await fieldOf(moveDeal(tx, move({ id: ids[0], to: 'negotiation' }), null, userId))
+			).toBe('dropProject');
+			const [txn] = await tx
+				.insert(transaction)
+				.values({
+					type: 'income',
+					date: '2030-01-20',
+					amount: 1_000_000,
+					clientId,
+					projectId
+				})
+				.returning();
+			const back = move({ id: ids[0], to: 'negotiation', dropProject: 'yes' });
+			expect(await fieldOf(moveDeal(tx, back, null, userId))).toMatch(
+				/sudah punya 1 transaksi, jadi tidak bisa dihapus/
+			);
+			await tx.delete(transaction).where(eq(transaction.id, txn.id));
+
+			await moveDeal(tx, back, null, userId);
+			const [d] = await tx.select().from(deal).where(eq(deal.id, ids[0]));
+			expect(d).toMatchObject({ stage: 'negotiation', wonAt: null });
+			expect(await tx.select().from(project).where(eq(project.id, projectId!))).toHaveLength(0);
+			expect(await tx.select().from(action).where(eq(action.projectId, projectId!))).toHaveLength(
+				0
+			);
+			const [returned] = await tx.select().from(strategyPlan).where(eq(strategyPlan.id, plan.id));
+			expect(returned).toMatchObject({ projectId: null, dealId: ids[0] });
+			const logs = await tx
+				.select({ body: activity.body })
+				.from(activity)
+				.where(eq(activity.dealId, ids[0]));
+			expect(logs.map((l) => l.body)).toContain(
+				'Proyek "Proyek Menang" dihapus karena deal "Deal Menang" dipindah dari Deal ✓'
+			);
+		});
+	});
+
+	it('reopens a lost deal only with a next step', async () => {
+		await inRollback(async (tx, userId) => {
+			const { ids } = await setup(tx, userId, ['Batal keliru']);
+			await moveDeal(tx, move({ id: ids[0], to: 'lost', lostReason: 'Harga' }), null, userId);
 			await expect(
-				moveDeal(tx, move({ id: ids[0], to: 'negotiation' }), null, userId)
-			).rejects.toThrow(ServiceError);
+				moveDeal(tx, move({ id: ids[0], to: 'proposal' }), null, userId)
+			).rejects.toMatchObject({ field: 'next' });
+			const next = stepSchema.parse({
+				title: 'Telepon ulang klien',
+				dueDate: '2030-02-03',
+				dueTime: '10:00'
+			});
+			await moveDeal(tx, move({ id: ids[0], to: 'proposal' }), null, userId, next);
+			const [d] = await tx.select().from(deal).where(eq(deal.id, ids[0]));
+			expect(d).toMatchObject({ stage: 'proposal', lostReason: null, lostAt: null });
+			const open = await tx
+				.select({ title: action.title })
+				.from(action)
+				.where(and(eq(action.dealId, ids[0]), isNull(action.doneAt)));
+			expect(open.map((o) => o.title)).toEqual(['Telepon ulang klien']);
 		});
 	});
 

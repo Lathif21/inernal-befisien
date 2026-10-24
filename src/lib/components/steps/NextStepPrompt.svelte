@@ -44,6 +44,12 @@
 		}
 	});
 
+	/** The footer button closes by setting `open`, which bits-ui does not report as a dismiss */
+	function cancel() {
+		open = false;
+		oncancel();
+	}
+
 	async function submit(withNext: boolean) {
 		busy = withNext ? 'save' : 'skip';
 		try {
@@ -99,12 +105,7 @@
 				{busy === 'skip' ? 'Menyimpan…' : 'Lewati'}
 			</button>
 		{:else}
-			<button
-				type="button"
-				class="bf-btn bf-btn--secondary"
-				disabled={!!busy}
-				onclick={() => (open = false)}
-			>
+			<button type="button" class="bf-btn bf-btn--secondary" disabled={!!busy} onclick={cancel}>
 				Batal
 			</button>
 		{/if}

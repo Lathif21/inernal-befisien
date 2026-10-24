@@ -11,6 +11,7 @@
 	import Timeline from '#lib/components/clients/Timeline.svelte';
 	import DealFormDrawer from '#lib/components/deals/DealFormDrawer.svelte';
 	import LostModal from '#lib/components/deals/LostModal.svelte';
+	import ReopenModal, { type ReopenInfo } from '#lib/components/deals/ReopenModal.svelte';
 	import WonModal, { type WonFields } from '#lib/components/deals/WonModal.svelte';
 	import KanbanBoard, { type KanbanColumn } from '#lib/components/kanban/KanbanBoard.svelte';
 	import KanbanCard from '#lib/components/kanban/KanbanCard.svelte';
@@ -28,7 +29,8 @@
 		OPEN_DEAL_STAGES,
 		PROJECT_STAGE_META,
 		SERVICE_TYPE_LABELS,
-		SERVICE_TYPES
+		SERVICE_TYPES,
+		type DealStage
 	} from '#lib/constants.ts';
 	import { dateID, rupiah, rupiahShort } from '#lib/format.ts';
 	import { toLanes, type KanbanMove } from '#lib/kanban.ts';
@@ -136,7 +138,10 @@
 	let wonDeal = $state<{ id: string; title: string; valueEstimate: number | null } | null>(null);
 	let wonErrors = $state<Record<string, string>>({});
 	let lostOpen = $state(false);
-	let lostDeal = $state<{ title: string } | null>(null);
+	let lostDeal = $state<{ title: string; hasProject: boolean } | null>(null);
+	let reopenOpen = $state(false);
+	let reopenDeal = $state<ReopenInfo | null>(null);
+	const isOpenStage = (s: string) => (OPEN_DEAL_STAGES as readonly string[]).includes(s);
 
 	async function onMove(move: KanbanMove) {
 		const d = dealById(move.id);
@@ -148,8 +153,20 @@
 			return waitFor(move);
 		}
 		if (move.to === 'lost' && move.from !== 'lost') {
-			lostDeal = d ? { title: d.title } : null;
+			lostDeal = d ? { title: d.title, hasProject: move.from === 'won' && d.hasProject } : null;
 			lostOpen = true;
+			return waitFor(move);
+		}
+		// Out of Deal ✓ / Batal back to an open stage (a human error): confirm, maybe a next step
+		if ((move.from === 'won' || move.from === 'lost') && isOpenStage(move.to) && d) {
+			reopenDeal = {
+				title: d.title,
+				fromLabel: DEAL_STAGE_META[move.from as DealStage].label,
+				toLabel: DEAL_STAGE_META[move.to as DealStage].label,
+				hasProject: move.from === 'won' && d.hasProject,
+				needsStep: !d.next
+			};
+			reopenOpen = true;
 			return waitFor(move);
 		}
 		await finish(await post('move', moveFields(move)));
@@ -182,13 +199,37 @@
 
 	async function submitLost(reason: string) {
 		if (!pending) return;
-		const result = await post('move', { ...moveFields(pending.move), lostReason: reason });
+		const result = await post('move', {
+			...moveFields(pending.move),
+			lostReason: reason,
+			dropProject: lostDeal?.hasProject ? 'yes' : ''
+		});
 		try {
 			await finish(result);
 			lostOpen = false;
 			pending?.settle(true);
 		} catch (e) {
 			lostOpen = false;
+			pending?.settle(false, e as Error);
+		}
+	}
+
+	async function submitReopen(next: StepValue | null) {
+		if (!pending) return;
+		const result = await post('move', {
+			...moveFields(pending.move),
+			dropProject: reopenDeal?.hasProject ? 'yes' : '',
+			...(next ? stepFields(next, 'next.') : {})
+		});
+		// Step problems stay in the modal so the person can fix them
+		if (result.type === 'failure' && result.data?.fields)
+			return result.data.fields as Record<string, string>;
+		try {
+			await finish(result);
+			reopenOpen = false;
+			pending?.settle(true);
+		} catch (e) {
+			reopenOpen = false;
 			pending?.settle(false, e as Error);
 		}
 	}
@@ -450,6 +491,9 @@
 <LostModal
 	bind:open={lostOpen}
 	deal={lostDeal}
+	warning={lostDeal?.hasProject
+		? 'Proyek yang dibuat dari deal ini akan dihapus, beserta langkah-langkahnya. Tidak bisa jika proyek itu sudah punya transaksi atau invoice.'
+		: undefined}
 	onsubmit={submitLost}
 	oncancel={() => pending?.settle(false)}
 />
@@ -466,6 +510,14 @@
 	errors={promptErrors}
 	onsubmit={submitNextStep}
 	oncancel={() => (promptStep = null)}
+/>
+
+<ReopenModal
+	bind:open={reopenOpen}
+	deal={reopenDeal}
+	assignees={data.owners}
+	onsubmit={submitReopen}
+	oncancel={() => pending?.settle(false)}
 />
 
 <AddStepModal

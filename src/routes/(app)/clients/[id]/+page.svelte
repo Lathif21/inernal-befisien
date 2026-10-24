@@ -263,7 +263,7 @@
 	{#if archived}
 		<p role="status" class="rounded-control bg-tint px-4 py-3 text-small font-bold text-ink-2">
 			Klien ini diarsipkan pada {dateID(c.archivedAt!)}. Pulihkan dari daftar klien (filter Status →
-			Diarsipkan) untuk mengubah datanya.
+			Diarsipkan) untuk mengubah datanya, atau hapus permanen dari sana.
 		</p>
 	{/if}
 

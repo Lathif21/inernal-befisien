@@ -258,7 +258,15 @@ export async function completeAction(
 					);
 				await moveDeal(
 					tx,
-					{ id: ref.dealId!, to, beforeId: '', afterId: '', lostReason: '', createProject: '' },
+					{
+						id: ref.dealId!,
+						to,
+						beforeId: '',
+						afterId: '',
+						lostReason: '',
+						createProject: '',
+						dropProject: ''
+					},
 					null,
 					userId
 				);

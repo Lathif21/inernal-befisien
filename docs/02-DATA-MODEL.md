@@ -257,11 +257,13 @@ expected_cash= total − pph23_amount                     (what actually reaches
 1. **Stage change** → update `stage`, `stage_changed_at`, `position`. Insert an `activity` of type `stage_change`.
 2. **Deal → `won`** → set `won_at`. If the user confirms, create a `project` (`onboarding`, `contract_value = value_estimate`, same client, `deal_id` set). Set `client.status = active`.
 3. **Deal → `lost`** → require `lost_reason`, set `lost_at`, close its open actions, and set its active plan to `dropped`.
+   3b. **Deal out of `won` / `lost`** (fixing a human error) → back to an open stage needs a next step when the deal has no open one. Leaving `won` deletes the project made from the deal (its steps go with it; its plans return to the deal) only after the user confirms, and is refused once that project has transactions or invoices.
 4. **Complete an action** → set `done_at` and `done_by`, log an `activity` (`action_done`). If the deal or project has no open action left, prompt for one (skippable only for terminal stages: `won`, `lost`, `done`). If all steps of a plan are done, offer to mark the plan `achieved`.
    4b. **Deal → `won` with a plan** → move the plan to the new project (`project_id` set, `deal_id` kept for history).
    4c. **Accept an AI suggestion** → create an action (or a plan), set `from_suggestion_id`, mark the suggestion `accepted`, and log an `activity` (`ai_accepted`).
 5. **Transaction created, edited or deleted** → log an `activity` (`transaction`). Totals are always computed by queries, never stored on the client.
 6. **Archive client** → only allowed when there are no open deals or projects (or confirm to archive them all).
+   6b. **Delete client** → only an archived client, after a confirmation, and never while it has transactions or invoices. Deletes its contacts, deals, projects, plans, steps, activities and AI suggestions.
 
 ## Ordering inside kanban columns
 

@@ -1,12 +1,28 @@
 // Sales Pipeline: deals and their moves on the board. Relative imports only: shared with Trigger.dev.
 // Rules: docs/02-DATA-MODEL.md "Business rules" 1, 2, 3, 4b and "Ordering inside kanban columns".
 import { and, asc, desc, eq, gte, ilike, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
-import { DEAL_STAGE_META, type DealStage, type ServiceType } from '../../constants';
+import {
+	DEAL_STAGE_META,
+	OPEN_DEAL_STAGES,
+	type DealStage,
+	type ServiceType
+} from '../../constants';
 import { wibLocalToDate } from '../../format';
 import type { DealInput, MoveInput, WonProjectInput } from '../../schemas/deal';
+import type { StepInput } from '../../schemas/step';
 import type { DbOrTx, Tx } from '../db/client';
-import { action, activity, client, deal, project, strategyPlan, user } from '../db/schema/index';
-import { getNextActions, listCardSteps } from './actions';
+import {
+	action,
+	activity,
+	client,
+	deal,
+	invoice,
+	project,
+	strategyPlan,
+	transaction,
+	user
+} from '../db/schema/index';
+import { addAction, getNextActions, listCardSteps } from './actions';
 import { logActivity } from './activity';
 import { positionBetween, topOf } from './board-position';
 import { ServiceError } from './errors';
@@ -191,14 +207,55 @@ export async function updateDeal(db: DbOrTx, id: string, input: DealInput, userI
 // ---------- moves ----------
 
 /**
+ * Undo a won deal's hand-off (a human error): the project made from it is deleted with its steps,
+ * its plans go back to the deal, and activities / AI suggestions just lose the link. Refused once
+ * the project has money attached (transactions or invoices).
+ */
+async function dropWonProject(
+	tx: Tx,
+	source: typeof deal.$inferSelect,
+	linked: { id: string; name: string },
+	userId: string
+) {
+	const [{ txns }] = await tx
+		.select({ txns: sql<number>`count(*)::int` })
+		.from(transaction)
+		.where(eq(transaction.projectId, linked.id));
+	const [{ invoices }] = await tx
+		.select({ invoices: sql<number>`count(*)::int` })
+		.from(invoice)
+		.where(eq(invoice.projectId, linked.id));
+	if (txns || invoices)
+		throw new ServiceError(
+			`Proyek "${linked.name}" sudah punya ${[txns && `${txns} transaksi`, invoices && `${invoices} invoice`].filter(Boolean).join(' dan ')}, jadi tidak bisa dihapus. Deal ini tetap di Deal ✓.`
+		);
+	await tx
+		.update(strategyPlan)
+		.set({ projectId: null, dealId: sql`coalesce(${strategyPlan.dealId}, ${source.id})` })
+		.where(eq(strategyPlan.projectId, linked.id));
+	await tx.delete(project).where(eq(project.id, linked.id));
+	await logActivity(tx, {
+		clientId: source.clientId,
+		dealId: source.id,
+		type: 'system',
+		body: `Proyek "${linked.name}" dihapus karena deal "${source.title}" dipindah dari Deal ✓`,
+		meta: { projectId: linked.id },
+		userId
+	});
+}
+
+/**
  * Move a deal on the board (drag or "Pindah ke…"). Rules 1 (stage change + activity), 2 (won),
  * 3 (lost: reason, close open steps, drop the active plan) and 4b (plan follows the project).
+ * Won / lost cards can move back (human error): reopening needs a next step when none is open,
+ * and leaving Deal ✓ deletes the project made from the deal only with `dropProject`.
  */
 export async function moveDeal(
 	db: DbOrTx,
 	input: MoveInput,
 	wonProject: WonProjectInput | null,
-	userId: string
+	userId: string,
+	next: StepInput | null = null
 ) {
 	return db.transaction(async (tx) => {
 		const [current] = await tx.select().from(deal).where(eq(deal.id, input.id)).for('update');
@@ -208,10 +265,31 @@ export async function moveDeal(
 
 		if (from === 'won' && to !== 'won') {
 			const [linked] = await tx
-				.select({ id: project.id })
+				.select({ id: project.id, name: project.name })
 				.from(project)
 				.where(eq(project.dealId, current.id));
-			if (linked) throw new ServiceError('Deal ini sudah punya proyek, jadi tetap di Deal ✓.');
+			if (linked) {
+				if (input.dropProject !== 'yes')
+					throw new ServiceError(
+						`Deal ini sudah punya proyek "${linked.name}". Konfirmasi dulu untuk menghapus proyek itu.`,
+						'dropProject'
+					);
+				await dropWonProject(tx, current, linked, userId);
+			}
+		}
+
+		// Back to an open stage: the card must have an open step again (lost closed them all)
+		const reopening =
+			(from === 'won' || from === 'lost') &&
+			(OPEN_DEAL_STAGES as readonly DealStage[]).includes(to);
+		if (reopening && !next) {
+			const [open] = await tx
+				.select({ id: action.id })
+				.from(action)
+				.where(and(eq(action.dealId, current.id), isNull(action.doneAt)))
+				.limit(1);
+			if (!open)
+				throw new ServiceError('Tambahkan langkah berikutnya untuk membuka lagi deal ini.', 'next');
 		}
 
 		const position = await positionBetween(
@@ -271,6 +349,8 @@ export async function moveDeal(
 			meta: { from, to },
 			userId
 		});
+
+		if (reopening && next) await addAction(tx, { dealId: current.id }, next, userId);
 
 		const projectId =
 			to === 'won' && wonProject

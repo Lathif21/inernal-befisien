@@ -1,11 +1,21 @@
-// Client list, create / edit and archive. Relative imports only: shared with Trigger.dev tasks.
-import { and, asc, desc, eq, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
+// Client list, create / edit, archive and delete. Relative imports only: shared with Trigger.dev tasks.
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn, AnyPgTable } from 'drizzle-orm/pg-core';
 import type { ClientStatus, Industry } from '../../constants';
 import { dayKeyWib } from '../../format';
 import type { ClientInput } from '../../schemas/client';
 import type { DbOrTx } from '../db/client';
-import { client, contact, deal, project, transaction, user } from '../db/schema/index';
+import {
+	action,
+	client,
+	contact,
+	deal,
+	invoice,
+	project,
+	strategyPlan,
+	transaction,
+	user
+} from '../db/schema/index';
 import { logActivity } from './activity';
 import { paidIncome } from './projects';
 import { ServiceError } from './errors';
@@ -226,6 +236,54 @@ export async function restoreClient(db: DbOrTx, id: string, userId: string) {
 			body: 'Klien dipulihkan dari arsip',
 			userId
 		});
+	});
+}
+
+/**
+ * Delete an archived client for good, with its contacts, deals, projects, plans, steps, timeline
+ * and AI suggestions. Refused while money records exist: invoices keep their numbers and income
+ * history must not disappear, so such a client stays archived.
+ */
+export async function deleteClient(db: DbOrTx, id: string) {
+	return db.transaction(async (tx) => {
+		const [row] = await tx
+			.select({ name: client.name, archivedAt: client.archivedAt })
+			.from(client)
+			.where(eq(client.id, id))
+			.for('update');
+		if (!row) throw new ServiceError('Klien tidak ditemukan.');
+		if (!row.archivedAt) throw new ServiceError('Arsipkan klien dulu sebelum menghapusnya.');
+
+		const [{ txns }] = await tx
+			.select({ txns: sql<number>`count(*)::int` })
+			.from(transaction)
+			.where(eq(transaction.clientId, id));
+		const [{ invoices }] = await tx
+			.select({ invoices: sql<number>`count(*)::int` })
+			.from(invoice)
+			.where(eq(invoice.clientId, id));
+		if (txns || invoices) {
+			const parts = [txns && `${txns} transaksi`, invoices && `${invoices} invoice`].filter(
+				Boolean
+			);
+			throw new ServiceError(
+				`${row.name} punya ${parts.join(' dan ')}, jadi tidak bisa dihapus. Data keuangan tetap disimpan; biarkan klien ini di arsip.`
+			);
+		}
+
+		// Plans point at deals and projects without cascade: their steps and the plans go first.
+		// Steps of deals / projects cascade with them; contacts, activities and AI suggestions
+		// cascade with the client.
+		const plans = tx
+			.select({ id: strategyPlan.id })
+			.from(strategyPlan)
+			.where(eq(strategyPlan.clientId, id));
+		await tx.delete(action).where(inArray(action.planId, plans));
+		await tx.delete(strategyPlan).where(eq(strategyPlan.clientId, id));
+		await tx.delete(project).where(eq(project.clientId, id));
+		await tx.delete(deal).where(eq(deal.clientId, id));
+		await tx.delete(client).where(eq(client.id, id));
+		return row;
 	});
 }
 

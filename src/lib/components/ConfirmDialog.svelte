@@ -60,7 +60,9 @@
 				{#each Object.entries(fields) as [name, value] (name)}
 					<input type="hidden" {name} {value} />
 				{/each}
-				<AlertDialog.Cancel class="bf-btn bf-btn--secondary">Batal</AlertDialog.Cancel>
+				<!-- type="button": bits-ui renders a plain <button>, which inside this form would submit -->
+				<AlertDialog.Cancel type="button" class="bf-btn bf-btn--secondary">Batal</AlertDialog.Cancel
+				>
 				<button
 					type="submit"
 					class={['bf-btn', tone === 'danger' ? 'bg-danger-fill text-on-accent' : 'bf-btn--dark']}

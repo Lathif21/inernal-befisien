@@ -99,7 +99,9 @@ export const moveSchema = z
 		/** Batal: one of LOST_REASONS, optionally with free text */
 		lostReason: z.string().trim().max(500).default(''),
 		/** Deal ✓: "yes" when "Buat Proyek" was chosen */
-		createProject: z.enum(['yes', '']).default('')
+		createProject: z.enum(['yes', '']).default(''),
+		/** Out of Deal ✓: "yes" confirms deleting the project made from the deal (human error) */
+		dropProject: z.enum(['yes', '']).default('')
 	})
 	.superRefine((m, ctx) => {
 		if (m.to === 'lost' && m.lostReason.length < 3) {

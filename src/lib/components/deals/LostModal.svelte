@@ -5,13 +5,21 @@
 	type Props = {
 		open: boolean;
 		deal: { title: string } | null;
+		/** E.g. Deal ✓ → Batal deletes the project made from the deal */
+		warning?: string;
 		/** Save the final reason text */
 		onsubmit: (reason: string) => Promise<void>;
 		/** Dismissed (X / Esc / Batal): the board puts the card back */
 		oncancel: () => void;
 	};
 
-	let { open = $bindable(), deal, onsubmit, oncancel }: Props = $props();
+	let { open = $bindable(), deal, warning, onsubmit, oncancel }: Props = $props();
+
+	/** Setting `open` is not reported by bits-ui as a dismiss, so the board is told here */
+	function cancel() {
+		open = false;
+		oncancel();
+	}
 
 	let reason = $state('');
 	let note = $state('');
@@ -51,6 +59,11 @@
 	}}
 >
 	<form id="lost-form" class="flex flex-col gap-4" novalidate onsubmit={save}>
+		{#if warning}
+			<p class="rounded-control bg-danger-bg px-3.5 py-2.5 text-small font-semibold text-danger">
+				{warning}
+			</p>
+		{/if}
 		<fieldset class="flex flex-col gap-1" aria-describedby={error ? 'lost-error' : undefined}>
 			<legend class="mb-2 text-small font-bold text-ink-2"
 				>Alasan <span class="text-danger" aria-hidden="true">*</span></legend
@@ -82,11 +95,8 @@
 	</form>
 
 	{#snippet footer()}
-		<button
-			type="button"
-			class="bf-btn bf-btn--secondary"
-			disabled={busy}
-			onclick={() => (open = false)}>Batal</button
+		<button type="button" class="bf-btn bf-btn--secondary" disabled={busy} onclick={cancel}
+			>Batal</button
 		>
 		<button
 			type="submit"

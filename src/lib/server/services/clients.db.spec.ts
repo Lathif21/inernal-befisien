@@ -2,9 +2,20 @@
 // a transaction that is always rolled back; skipped when no dev database is configured.
 import { describe, expect, it } from 'vitest';
 import { createDb, type Tx } from '../db/client';
-import { contact, deal, project, transaction, user } from '../db/schema/index';
+import { eq } from 'drizzle-orm';
+import {
+	action,
+	activity,
+	client,
+	contact,
+	deal,
+	project,
+	strategyPlan,
+	transaction,
+	user
+} from '../db/schema/index';
 import { clientSchema } from '../../schemas/client';
-import { archiveClient, createClient, listClients } from './clients';
+import { archiveClient, createClient, deleteClient, listClients } from './clients';
 import { ServiceError } from './errors';
 
 try {
@@ -101,6 +112,77 @@ describe.skipIf(!isDevDb)('clients service (dev database)', { timeout: 30_000 },
 			const { rows, total } = await listClients(tx, { q: 'qwertyuiop' });
 			expect(total).toBe(1);
 			expect(rows[0]).toMatchObject({ name: 'ZZ Test Kontak', contactName: 'Qwertyuiop Zxcv' });
+		});
+	});
+
+	it('deletes an archived client with its records, but never one with money records', async () => {
+		await inRollback(async (tx, userId) => {
+			const c = await createClient(tx, clientSchema.parse({ name: 'ZZ Hapus Klien' }), userId);
+			const errorOf = (p: Promise<unknown>) =>
+				p.then(
+					() => null,
+					(e) => (e instanceof ServiceError ? e.message : String(e))
+				);
+			expect(await errorOf(deleteClient(tx, c.id))).toBe(
+				'Arsipkan klien dulu sebelum menghapusnya.'
+			);
+
+			await tx.insert(contact).values({ clientId: c.id, name: 'Bu Rina' });
+			const [d] = await tx
+				.insert(deal)
+				.values({
+					clientId: c.id,
+					title: 'Deal lama',
+					stage: 'lost',
+					lostReason: 'Harga',
+					position: 'a0'
+				})
+				.returning();
+			const [p] = await tx
+				.insert(project)
+				.values({
+					clientId: c.id,
+					dealId: d.id,
+					name: 'Proyek lama',
+					stage: 'done',
+					position: 'a0'
+				})
+				.returning();
+			const [plan] = await tx
+				.insert(strategyPlan)
+				.values({ clientId: c.id, dealId: d.id, goal: 'Closing', ownerId: userId })
+				.returning();
+			const due = new Date('2030-01-01T03:00:00Z');
+			await tx.insert(action).values([
+				{ dealId: d.id, title: 'Langkah deal', dueAt: due },
+				{ projectId: p.id, title: 'Langkah proyek', dueAt: due },
+				{ dealId: d.id, planId: plan.id, title: 'Langkah rencana', dueAt: due }
+			]);
+			await tx
+				.update(client)
+				.set({ archivedAt: new Date(), status: 'archived' })
+				.where(eq(client.id, c.id));
+
+			// money keeps the client
+			const [t] = await tx
+				.insert(transaction)
+				.values({ type: 'income', date: '2030-01-05', amount: 1_000_000, clientId: c.id })
+				.returning();
+			expect(await errorOf(deleteClient(tx, c.id))).toMatch(
+				/punya 1 transaksi, jadi tidak bisa dihapus/
+			);
+			await tx.delete(transaction).where(eq(transaction.id, t.id));
+
+			await deleteClient(tx, c.id);
+			expect(await tx.select().from(client).where(eq(client.id, c.id))).toHaveLength(0);
+			expect(await tx.select().from(contact).where(eq(contact.clientId, c.id))).toHaveLength(0);
+			expect(await tx.select().from(activity).where(eq(activity.clientId, c.id))).toHaveLength(0);
+			expect(await tx.select().from(deal).where(eq(deal.id, d.id))).toHaveLength(0);
+			expect(await tx.select().from(project).where(eq(project.id, p.id))).toHaveLength(0);
+			expect(await tx.select().from(strategyPlan).where(eq(strategyPlan.id, plan.id))).toHaveLength(
+				0
+			);
+			expect(await tx.select().from(action).where(eq(action.dealId, d.id))).toHaveLength(0);
 		});
 	});
 });

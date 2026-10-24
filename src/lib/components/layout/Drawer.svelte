@@ -37,7 +37,7 @@
 						>
 					{/if}
 				</div>
-				<Dialog.Close class="bf-icon-btn shrink-0" aria-label="Tutup">
+				<Dialog.Close type="button" class="bf-icon-btn shrink-0" aria-label="Tutup">
 					<X size={18} strokeWidth={1.75} />
 				</Dialog.Close>
 			</div>
