@@ -32,3 +32,6 @@ vite.config.ts.timestamp-*
 # Playwright
 /test-results/
 /playwright-report/
+
+# Trigger.dev build output
+.trigger
