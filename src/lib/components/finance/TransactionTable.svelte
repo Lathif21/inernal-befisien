@@ -56,6 +56,11 @@
 							{:else}<span class="font-bold">{t.description ?? '(tanpa keterangan)'}</span>{/if}
 							{#if t.projectName}<span class="block text-small text-ink-3">{t.projectName}</span
 								>{/if}
+							{#if t.invoiceId && t.invoiceNumber}<a
+									href={resolve('/(app)/invoices/[id]', { id: t.invoiceId })}
+									class="block font-mono text-[12px] font-bold text-accent-ink"
+									title="Pembayaran invoice">{t.invoiceNumber}</a
+								>{/if}
 						</td>
 						<td>{t.categoryName ?? '–'}</td>
 						{#if showClient}

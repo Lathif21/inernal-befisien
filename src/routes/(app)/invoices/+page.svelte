@@ -134,7 +134,12 @@
 									</td>
 									<td class="whitespace-nowrap">{dateID(inv.issueDate)}</td>
 									<td class="whitespace-nowrap">{dateID(inv.dueDate)}</td>
-									<td><InvoiceStatusChip status={inv.status} /></td>
+									<td>
+										<InvoiceStatusChip status={inv.status} />
+										{#if inv.status === 'partial'}<span class="block text-small text-ink-3"
+												>sisa {rupiah(Math.max(0, inv.total - inv.pph23Amount - inv.paid))}</span
+											>{/if}
+									</td>
 									<td class="num font-bold">{rupiah(inv.total)}</td>
 								</tr>
 							{/each}

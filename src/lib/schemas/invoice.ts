@@ -1,6 +1,7 @@
-// Invoice input (P2-04 / P2-05). Amounts are whole Rupiah; totals are never taken from the
-// browser: the server recomputes them with lib/invoice.ts.
+// Invoice input (P2-04 / P2-05) and payments against an invoice (P2-07). Amounts are whole Rupiah;
+// totals are never taken from the browser: the server recomputes them with lib/invoice.ts.
 import { z } from 'zod';
+import { PAYMENT_METHODS } from '../constants';
 import { DEFAULT_PPH23_RATE, DEFAULT_PPN_RATE } from '../invoice';
 
 const day = (message: string) =>
@@ -54,3 +55,24 @@ export const invoiceSchema = z
 	});
 
 export type InvoiceInput = z.infer<typeof invoiceSchema>;
+
+/** "Catat Pembayaran" on an invoice: becomes a paid income transaction linked to it (P2-07) */
+export const paymentSchema = z.object({
+	date: day('Pilih tanggal pembayaran.'),
+	amount: z.preprocess(
+		(v) => (v === '' || v === null || v === undefined ? undefined : Number(v)),
+		z
+			.number({ message: 'Masukkan jumlah.' })
+			.int('Tanpa desimal.')
+			.min(1, 'Jumlah harus lebih dari 0.')
+			.max(999_999_999_999, 'Jumlah terlalu besar.')
+	),
+	categoryId: z.string().refine((v) => z.uuid().safeParse(v).success, {
+		message: 'Pilih kategori.'
+	}),
+	method: z.enum(PAYMENT_METHODS, { message: 'Pilih metode dari daftar.' }).default('transfer'),
+	reference: z.string().trim().max(100, 'Referensi maksimal 100 karakter.').default(''),
+	description: z.string().trim().max(500, 'Keterangan maksimal 500 karakter.').default('')
+});
+
+export type PaymentInput = z.infer<typeof paymentSchema>;

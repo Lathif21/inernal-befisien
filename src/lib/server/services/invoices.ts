@@ -288,6 +288,11 @@ export async function listInvoices(db: DbOrTx, f: InvoiceFilters = {}) {
 			issueDate: invoice.issueDate,
 			dueDate: invoice.dueDate,
 			total: invoice.total,
+			pph23Amount: invoice.pph23Amount,
+			// paid payments (P2-07); columns qualified: this is a correlated subquery
+			paid: sql<number>`(select coalesce(sum("transaction"."amount"), 0) from "transaction" where "transaction"."invoice_id" = "invoice"."id" and "transaction"."status" = 'paid')::bigint`.mapWith(
+				Number
+			),
 			clientId: invoice.clientId,
 			clientName: client.name,
 			projectName: project.name

@@ -60,3 +60,24 @@ export function invoiceTotals(
 export function formatInvoiceNumber(issueDate: string, seq: number) {
 	return `INV/BEF/${issueDate.slice(0, 4)}/${issueDate.slice(5, 7)}/${String(seq).padStart(3, '0')}`;
 }
+
+// ---------- payments (P2-07) ----------
+
+/** Statuses that take payments: a draft is sent first, a paid or void invoice takes no more */
+export const PAYABLE_INVOICE_STATUSES = ['sent', 'partial', 'overdue'] as const;
+
+/**
+ * Status from what has been paid. In full = the cash the client transfers after withholding
+ * PPh 23 (total − PPh 23). Nothing paid yet: overdue once the due date has passed (WIB days).
+ */
+export function paymentStatus(p: {
+	paid: number;
+	total: number;
+	pph23Amount: number;
+	dueDate: string;
+	today: string;
+}): (typeof PAYABLE_INVOICE_STATUSES)[number] | 'paid' {
+	if (p.paid >= p.total - p.pph23Amount) return 'paid';
+	if (p.paid > 0) return 'partial';
+	return p.dueDate < p.today ? 'overdue' : 'sent';
+}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { formatInvoiceNumber, invoiceTotals, lineAmount, percentOf } from './invoice';
+import {
+	formatInvoiceNumber,
+	invoiceTotals,
+	lineAmount,
+	paymentStatus,
+	percentOf
+} from './invoice';
 
 describe('invoice arithmetic', () => {
 	it('computes lines with decimal quantities in whole Rupiah', () => {
@@ -41,5 +47,16 @@ describe('invoice arithmetic', () => {
 	it('numbers invoices per issue month', () => {
 		expect(formatInvoiceNumber('2026-10-24', 7)).toBe('INV/BEF/2026/10/007');
 		expect(formatInvoiceNumber('2027-01-02', 1234)).toBe('INV/BEF/2027/01/1234');
+	});
+});
+
+describe('paymentStatus', () => {
+	const inv = { total: 49_950_000, pph23Amount: 900_000, dueDate: '2026-11-07' };
+	it('is paid once the cash after PPh 23 is in, partial before, overdue only with nothing paid', () => {
+		expect(paymentStatus({ ...inv, paid: 49_050_000, today: '2026-10-24' })).toBe('paid');
+		expect(paymentStatus({ ...inv, paid: 49_950_000, today: '2026-10-24' })).toBe('paid');
+		expect(paymentStatus({ ...inv, paid: 1, today: '2026-12-01' })).toBe('partial');
+		expect(paymentStatus({ ...inv, paid: 0, today: '2026-11-07' })).toBe('sent');
+		expect(paymentStatus({ ...inv, paid: 0, today: '2026-11-08' })).toBe('overdue');
 	});
 });

@@ -6,9 +6,10 @@ import { TXN_TYPE_LABELS, type PaymentMethod, type TxnStatus, type TxnType } fro
 import { rupiah } from '../../format';
 import type { TransactionInput } from '../../schemas/transaction';
 import type { DbOrTx, Tx } from '../db/client';
-import { category, client, project, transaction } from '../db/schema/index';
+import { category, client, invoice, project, transaction } from '../db/schema/index';
 import { logActivity } from './activity';
 import { ServiceError } from './errors';
+import { syncInvoiceStatus } from './invoice-status';
 
 export const TXN_PAGE_SIZE = 25;
 
@@ -105,12 +106,15 @@ export async function listTransactions(
 			clientId: transaction.clientId,
 			clientName: client.name,
 			projectId: transaction.projectId,
-			projectName: project.name
+			projectName: project.name,
+			invoiceId: transaction.invoiceId,
+			invoiceNumber: invoice.number
 		})
 		.from(transaction)
 		.innerJoin(client, eq(client.id, transaction.clientId))
 		.leftJoin(project, eq(project.id, transaction.projectId))
 		.leftJoin(category, eq(category.id, transaction.categoryId))
+		.leftJoin(invoice, eq(invoice.id, transaction.invoiceId))
 		.where(where)
 		.orderBy(desc(transaction.date), desc(transaction.createdAt), desc(transaction.id))
 		.limit(pageSize)
@@ -243,23 +247,31 @@ const summary = (
 ) =>
 	`${TXN_TYPE_LABELS[t.type].long} ${rupiah(t.amount)}${t.status === 'planned' ? ' (direncanakan)' : ''} ${verb}${t.description ? `: ${t.description}` : ''}`;
 
-export async function createTransaction(db: DbOrTx, input: TransactionInput, userId: string) {
-	return db.transaction(async (tx) => {
-		await checkRefs(tx, input, true);
-		const [row] = await tx
-			.insert(transaction)
-			.values({ ...values(input), createdBy: userId })
-			.returning();
-		await logActivity(tx, {
-			clientId: row.clientId,
-			projectId: row.projectId,
-			type: 'transaction',
-			body: summary('dicatat', row),
-			meta: { transactionId: row.id, action: 'created' },
-			userId
-		});
-		return row;
+/** Insert + activity inside the caller's transaction; `invoiceId` links a payment (P2-07) */
+export async function insertTransaction(
+	tx: Tx,
+	input: TransactionInput,
+	userId: string,
+	invoiceId: string | null = null
+) {
+	await checkRefs(tx, input, true);
+	const [row] = await tx
+		.insert(transaction)
+		.values({ ...values(input), invoiceId, createdBy: userId })
+		.returning();
+	await logActivity(tx, {
+		clientId: row.clientId,
+		projectId: row.projectId,
+		type: 'transaction',
+		body: summary('dicatat', row),
+		meta: { transactionId: row.id, action: 'created' },
+		userId
 	});
+	return row;
+}
+
+export async function createTransaction(db: DbOrTx, input: TransactionInput, userId: string) {
+	return db.transaction((tx) => insertTransaction(tx, input, userId));
 }
 
 export async function updateTransaction(db: DbOrTx, input: TransactionInput, userId: string) {
@@ -284,6 +296,8 @@ export async function updateTransaction(db: DbOrTx, input: TransactionInput, use
 			meta: { transactionId: row.id, action: 'updated' },
 			userId
 		});
+		// a payment keeps its invoice link; the invoice status follows the new amount / status
+		if (row.invoiceId) await syncInvoiceStatus(tx, row.invoiceId, userId);
 		return row;
 	});
 }
@@ -300,6 +314,7 @@ export async function deleteTransaction(db: DbOrTx, id: string, userId: string) 
 			meta: { transactionId: row.id, action: 'deleted' },
 			userId
 		});
+		if (row.invoiceId) await syncInvoiceStatus(tx, row.invoiceId, userId);
 		return row;
 	});
 }

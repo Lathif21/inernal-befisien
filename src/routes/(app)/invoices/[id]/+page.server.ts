@@ -2,12 +2,19 @@ import { error, fail } from '@sveltejs/kit';
 import { message, setError, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { z } from 'zod';
+import { rupiah } from '#lib/format.ts';
 import type { FormMessage } from '#lib/schemas/message.ts';
-import { invoiceSchema, type InvoiceInput } from '#lib/schemas/invoice.ts';
+import { invoiceSchema, paymentSchema, type InvoiceInput } from '#lib/schemas/invoice.ts';
 import { db } from '#lib/server/db/index.ts';
 import { runSimpleAction } from '#lib/server/forms.ts';
 import { requireUser } from '#lib/server/guards.ts';
 import { getCompanyProfile } from '#lib/server/services/company.ts';
+import {
+	deleteInvoicePayment,
+	getInvoicePayments,
+	recordPayment
+} from '#lib/server/services/invoice-payments.ts';
+import { listCategories } from '#lib/server/services/transactions.ts';
 import { ServiceError } from '#lib/server/services/errors.ts';
 import {
 	getInvoice,
@@ -52,7 +59,18 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		zod4(invoiceSchema),
 		{ errors: false }
 	);
-	return { invoice: inv, form, targets, companyIsExample: company.isExample };
+	const [payments, categories] = await Promise.all([
+		getInvoicePayments(db, inv),
+		listCategories(db).then((all) => all.filter((c) => c.type === 'income'))
+	]);
+	return {
+		invoice: inv,
+		form,
+		targets,
+		companyIsExample: company.isExample,
+		payments,
+		categories
+	};
 };
 
 export const actions: Actions = {
@@ -81,5 +99,40 @@ export const actions: Actions = {
 		const user = requireUser(locals);
 		const id = idOr404(params.id);
 		return runSimpleAction(() => voidInvoice(db, id, user.id), 'Invoice dibatalkan.');
+	},
+
+	/** From the payment modal (fetch): { done } or fail(400, { error, fields? }) */
+	pay: async ({ params, request, locals }) => {
+		const user = requireUser(locals);
+		const id = idOr404(params.id);
+		const parsed = paymentSchema.safeParse(Object.fromEntries(await request.formData()));
+		if (!parsed.success) {
+			const fields: Record<string, string> = {};
+			for (const i of parsed.error.issues) fields[String(i.path[0])] ??= i.message;
+			return fail(400, { error: 'Periksa pembayarannya.', fields });
+		}
+		try {
+			const { status } = await recordPayment(db, id, parsed.data, user.id);
+			return {
+				done: `Pembayaran ${rupiah(parsed.data.amount)} dicatat${status === 'paid' ? '. Invoice lunas.' : '.'}`
+			};
+		} catch (e) {
+			if (!(e instanceof ServiceError)) throw e;
+			return fail(400, {
+				error: e.message,
+				fields: e.field === 'amount' ? { amount: e.message } : undefined
+			});
+		}
+	},
+
+	deletePayment: async ({ params, request, locals }) => {
+		const user = requireUser(locals);
+		const id = idOr404(params.id);
+		const txnId = z.uuid().safeParse((await request.formData()).get('id'));
+		if (!txnId.success) return fail(400, { error: 'Pembayaran tidak valid.' });
+		return runSimpleAction(
+			() => deleteInvoicePayment(db, id, txnId.data, user.id),
+			'Pembayaran dihapus.'
+		);
 	}
 };

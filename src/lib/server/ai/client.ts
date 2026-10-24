@@ -43,7 +43,8 @@ export function sumopodClient(config: AiConfig): AiComplete {
 			},
 			body: JSON.stringify({
 				model: config.model,
-				max_tokens: req.maxTokens ?? 4000,
+				// Reasoning models spend part of this on thinking; only used tokens are billed
+				max_tokens: req.maxTokens ?? 8000,
 				messages: [
 					{ role: 'system', content: req.system },
 					{ role: 'user', content: req.user }

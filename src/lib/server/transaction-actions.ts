@@ -18,7 +18,7 @@ import {
 	updateTransaction
 } from '#lib/server/services/transactions.ts';
 
-const FIELDS = ['clientId', 'projectId', 'categoryId'] as const;
+const FIELDS = ['clientId', 'projectId', 'categoryId', 'amount'] as const;
 
 export const transactionActions = {
 	saveTransaction: async ({ request, locals }: RequestEvent) => {
