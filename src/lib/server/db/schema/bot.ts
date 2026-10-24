@@ -16,7 +16,7 @@ export const telegramDraft = pgTable(
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
 		chatId: text('chat_id').notNull(),
-		/** lead | step | move | plan | note */
+		/** lead | step | move | plan | note, or question (incomplete, waiting for an answer; no buttons) */
 		kind: text('kind').notNull(),
 		/** The checked draft that Simpan writes (services/telegram-input.ts `Draft`) */
 		payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),

@@ -113,6 +113,20 @@ describe('toDraft', () => {
 		expect(r.problems.join(' ')).toMatch(/deal_title minimal 3 karakter/);
 	});
 
+	it('lead: without a client name the bot asks for it', () => {
+		const r = toDraft(answer({ intent: 'lead', industry: 'manufacturing', city: 'Surabaya' }), ctx);
+		expect(r).toEqual({ ok: false, problems: ['Apa nama perusahaan atau kliennya?'] });
+	});
+
+	it('lead: a stage without a deal is ignored; other deal details ask for the deal', () => {
+		expect(
+			toDraft(answer({ intent: 'lead', client_name: 'PT Terang', deal_stage: 'lead' }), ctx)
+		).toMatchObject({ ok: true, draft: { row: { clientName: 'PT Terang', deal: null } } });
+		expect(
+			toDraft(answer({ intent: 'lead', client_name: 'PT Terang', deal_value: '50000000' }), ctx)
+		).toMatchObject({ ok: false, problems: [expect.stringMatching(/judul deal/)] });
+	});
+
 	it('lead: an existing client with nothing new is refused', () => {
 		const r = toDraft(answer({ intent: 'lead', existing_client: CLIENT }), ctx);
 		expect(r).toMatchObject({ ok: false, problems: [expect.stringMatching(/sudah ada di CRM/)] });

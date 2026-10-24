@@ -52,6 +52,8 @@ import { addPlanStep, createPlan } from './plans';
 export const DRAFT_MINUTES = 30;
 /** Longer voice notes are refused before they are downloaded */
 export const MAX_VOICE_SECONDS = 300;
+/** `telegram_draft.kind` of an incomplete message waiting for the answer to the bot's question */
+const QUESTION = 'question';
 /** Clients listed for the AI (the newest names beyond this are matched by exact name only) */
 const MAX_CLIENTS = 400;
 
@@ -297,6 +299,17 @@ export function toDraft(a: InputAnswer, ctx: InputContext): DraftResult {
 			const existing =
 				ctx.clients.find((c) => c.id === a.existing_client) ??
 				ctx.clients.find((c) => key(c.name) === key(a.client_name));
+			if (!existing && a.client_name.trim().length < 2)
+				return { ok: false, problems: ['Apa nama perusahaan atau kliennya?'] };
+			// A stage alone is the model's default, not a deal; other deal details need its title
+			const hasDeal = !!a.deal_title.trim();
+			if (!hasDeal && (a.deal_value || a.service_type || a.next_action))
+				return {
+					ok: false,
+					problems: [
+						'Apa pekerjaan yang dibutuhkan (judul deal, misalnya "Website company profile")?'
+					]
+				};
 			const raw: Partial<Record<ImportColumn, string>> = {
 				client_name: existing?.name ?? a.client_name,
 				industry: a.industry,
@@ -308,7 +321,7 @@ export function toDraft(a: InputAnswer, ctx: InputContext): DraftResult {
 				contact_email: a.contact_email,
 				deal_title: a.deal_title,
 				service_type: a.service_type,
-				deal_stage: a.deal_title ? a.deal_stage || 'lead' : a.deal_stage,
+				deal_stage: hasDeal ? a.deal_stage || 'lead' : '',
 				deal_value: a.deal_value,
 				next_action: a.next_action,
 				next_action_due: a.next_action_due.slice(0, 16),
@@ -604,19 +617,7 @@ export async function processInbound(
 	});
 	const result = toDraft(answer, ctx);
 
-	if (!result.ok) {
-		const problems = result.problems;
-		const lines = [answer.reply.trim(), ...problems.map((p) => `• ${p}`)].filter(Boolean);
-		await deps.send(
-			quote(source, input) +
-				(lines.length
-					? `${lines.map(esc).join('\n')}\n\nKirim ulang dengan data yang lebih lengkap.`
-					: 'Pesan ini tidak berisi data untuk dicatat. Kirim /bantuan untuk contoh.')
-		);
-		return { status: 'unclear', problems };
-	}
-
-	const replaced = !!(answer.revises_previous && previous);
+	const replaced = !!(answer.revises_previous && previous && answer.intent !== 'unknown');
 	if (replaced && previous) {
 		await db
 			.update(telegramDraft)
@@ -626,6 +627,39 @@ export async function processInbound(
 			await deps.clearButtons(previous.messageId).catch(() => {
 				// the old buttons stay; tapping them answers "sudah diganti"
 			});
+	}
+
+	if (!result.ok) {
+		const problems = result.problems;
+		const reply = answer.reply.trim();
+		// The AI's own question and a single check usually ask the same thing; say it once
+		const sameQuestion = problems.length === 1 && problems[0].endsWith('?') && reply.endsWith('?');
+		const lines = sameQuestion
+			? [reply]
+			: [reply, ...problems.map((p) => `• ${p}`)].filter(Boolean);
+		// What was understood waits for the answer ("Nama perusahaannya?" → "PT Terang Abadi"):
+		// a row without buttons that the next message can complete, like a correction
+		const waits = answer.intent !== 'unknown';
+		if (waits)
+			await db.insert(telegramDraft).values({
+				userId: payload.userId,
+				chatId: payload.chatId,
+				kind: QUESTION,
+				payload: {},
+				answer: answer as unknown as Record<string, unknown>,
+				source,
+				input,
+				expiresAt: new Date(now.getTime() + DRAFT_MINUTES * 60_000),
+				// App clock: now() is frozen inside a transaction, and "the open draft" is the newest one
+				createdAt: new Date()
+			});
+		await deps.send(
+			quote(source, input) +
+				(lines.length
+					? `${lines.map(esc).join('\n')}\n\n${waits ? 'Balas dengan jawabannya, atau kirim pesan baru.' : 'Kirim ulang dengan data yang lebih lengkap.'}`
+					: 'Pesan ini tidak berisi data untuk dicatat. Kirim /bantuan untuk contoh.')
+		);
+		return { status: 'unclear', problems };
 	}
 
 	const [row] = await db
@@ -638,7 +672,9 @@ export async function processInbound(
 			answer: answer as unknown as Record<string, unknown>,
 			source,
 			input,
-			expiresAt: new Date(now.getTime() + DRAFT_MINUTES * 60_000)
+			expiresAt: new Date(now.getTime() + DRAFT_MINUTES * 60_000),
+			// App clock: now() is frozen inside a transaction, and "the open draft" is the newest one
+			createdAt: new Date()
 		})
 		.returning({ id: telegramDraft.id });
 
@@ -772,7 +808,8 @@ export async function confirmDraft(
 				.from(telegramDraft)
 				.where(eq(telegramDraft.id, input.draftId))
 				.for('update');
-			if (!d || d.chatId !== input.chatId) return { toast: 'Draf tidak ditemukan.' };
+			if (!d || d.chatId !== input.chatId || d.kind === QUESTION)
+				return { toast: 'Draf tidak ditemukan.' };
 			const draft = d.payload as unknown as Draft;
 			if (d.status !== 'pending') return { toast: DECIDED[d.status] };
 			if (d.expiresAt <= now)
@@ -806,7 +843,8 @@ export async function cancelDraft(
 			and(
 				eq(telegramDraft.id, input.draftId),
 				eq(telegramDraft.chatId, input.chatId),
-				eq(telegramDraft.status, 'pending')
+				eq(telegramDraft.status, 'pending'),
+				ne(telegramDraft.kind, QUESTION)
 			)
 		)
 		.returning();

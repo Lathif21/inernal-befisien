@@ -314,6 +314,53 @@ describe.skipIf(!isDevDb)('telegram input (dev database)', () => {
 			})
 	);
 
+	it('an incomplete lead waits for the answer to the bot question', { timeout: 60_000 }, () =>
+		inRollback(async ({ tx, userId }) => {
+			const ask = fakes(() => ({
+				intent: 'lead',
+				industry: 'manufacturing',
+				reply: 'Nama perusahaannya apa?'
+			}));
+			const q = await processInbound(tx, textFrom(userId, 'lead baru pabrik lampu'), ask.deps, now);
+			expect(q.status).toBe('unclear');
+			// Asked once, with no buttons
+			expect(ask.sent).toEqual([
+				{
+					html: 'Nama perusahaannya apa?\n\nBalas dengan jawabannya, atau kirim pesan baru.',
+					buttons: 0,
+					id: 100
+				}
+			]);
+
+			const answerIt = fakes((req) => {
+				expect(req.user).toContain('Nama perusahaannya apa?');
+				return {
+					intent: 'lead',
+					revises_previous: true,
+					client_name: 'PT ZZ Terang Abadi',
+					industry: 'manufacturing'
+				};
+			});
+			const r = await processInbound(
+				tx,
+				textFrom(userId, 'PT ZZ Terang Abadi'),
+				answerIt.deps,
+				now
+			);
+			expect(r).toMatchObject({ status: 'draft', kind: 'lead', replaced: true });
+			// The question had no buttons to clear
+			expect(answerIt.cleared).toEqual([]);
+			const rows = await tx
+				.select({ kind: telegramDraft.kind, status: telegramDraft.status })
+				.from(telegramDraft)
+				.where(eq(telegramDraft.chatId, CHAT));
+			expect(rows.map((x) => `${x.kind}:${x.status}`).sort()).toEqual([
+				'lead:pending',
+				'question:replaced'
+			]);
+		})
+	);
+
 	it(
 		'an unclear message gets the problems and no draft; an unlinked user gets nothing',
 		{ timeout: 60_000 },

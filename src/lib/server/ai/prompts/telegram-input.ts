@@ -32,6 +32,11 @@ menjadi SATU draf data. Pengirim memeriksa draf lalu menekan Simpan; Anda tidak 
   contact_phone, contact_email, deal_title, service_type, deal_stage, deal_value, next_action,
   next_action_due, notes. Jika kliennya sudah ada di \`klien\`, isi existing_client dengan ref-nya
   (contoh "K3"); jika baru, existing_client "".
+  client_name: nama perusahaan / orang yang disebut ("PT Terang Abadi", "Pak Hendra"). Jika pesan
+  hanya menyebut jenis usahanya ("lead perusahaan tambang", "pabrik lampu di Sidoarjo"), pakai
+  deskripsi singkat itu sebagai nama sementara, huruf besar di awal kata ("Perusahaan Tambang",
+  "Pabrik Lampu Sidoarjo"); tim akan menggantinya nanti. Jangan bertanya hanya karena namanya
+  belum ada. Lead tanpa pekerjaan yang disebut: deal_title "" (hanya klien yang dibuat).
 - "step": langkah, tugas atau jadwal untuk deal atau proyek yang sudah ada di \`kartu\`
   (target, step_title, step_due).
 - "move": deal yang sudah ada pindah tahap (target = ref deal, to_stage; lost_reason jika batal).
@@ -58,8 +63,10 @@ menjadi SATU draf data. Pengirim memeriksa draf lalu menekan Simpan; Anda tidak 
   "Senin depan" yang diucapkan hari Sabtu = lusa), "minggu depan" tanpa nama hari (Senin
   depan), "jam 2 siang" = 14:00.
 - Uang dalam Rupiah utuh, hanya angka: "25 juta" → "25000000", "1,5 M" → "1500000000".
-- industry: ${choices(INDUSTRIES, INDUSTRY_LABELS)}.
-- source: ${choices(CLIENT_SOURCES, CLIENT_SOURCE_LABELS)}.
+- industry: ${choices(INDUSTRIES, INDUSTRY_LABELS)}. Boleh disimpulkan dari jenis usaha
+  ("pabrik" = manufacturing).
+- source: ${choices(CLIENT_SOURCES, CLIENT_SOURCE_LABELS)}. Hanya jika pesan menyebut dari mana
+  lead datang ("dari website", "referensi Pak Budi", "ketemu di pameran"); jangan menebak.
 - service_type: ${choices(SERVICE_TYPES, SERVICE_TYPE_LABELS)}.
 - deal_stage dan to_stage: ${choices(DEAL_STAGES, STAGE_LABELS)}. Deal baru tanpa tahap: "lead".
 - note_type: ${MANUAL_ACTIVITY_TYPES.map((t) => `"${t}"`).join(', ')} (telepon = "call").
@@ -76,8 +83,15 @@ menjadi SATU draf data. Pengirim memeriksa draf lalu menekan Simpan; Anda tidak 
 
 Jika ada \`draf_sebelumnya\` dan pesan ini mengoreksi atau menambah draf itu ("nilainya 30 juta",
 "jamnya jam 2", "tambah kontak Bu Rina"), isi revises_previous true dan kembalikan draf yang LENGKAP
-setelah dikoreksi (intent sama, semua kolom lama tetap diisi). Jika pesan ini data baru,
-revises_previous false.`;
+setelah dikoreksi (intent sama, semua kolom lama tetap diisi).
+
+Pesan yang berdiri sendiri adalah data BARU, bukan koreksi: revises_previous false dan JANGAN
+memakai kolom dari draf_sebelumnya. Contohnya pesan yang diawali "Lead baru", "Tolong catat",
+"Catatan", "Rencana", atau yang menyebut klien / deal lain. Ragu? Anggap data baru.
+
+Jika \`draf_sebelumnya\` belum lengkap (reply-nya berisi pertanyaan, misalnya "Nama perusahaannya
+apa?") dan pesan ini menjawabnya ("PT Terang Abadi", "yang proyek dashboard"), gabungkan jawabannya
+ke draf itu: revises_previous true, intent sama, reply "" jika sekarang sudah lengkap.`;
 
 const str = { type: 'string' } as const;
 const oneOf = (values: readonly string[]) => ({ type: 'string', enum: ['', ...values] }) as const;
