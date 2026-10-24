@@ -107,7 +107,8 @@ export function invoiceDocument(inv: InvoiceDetail, company: CompanyProfile): TD
 	};
 
 	const meta = (key: string, value: string): TableCell[] => [
-		{ text: key, color: C.ink3 },
+		// labels stay on one line; a long project name wraps in the value column instead
+		{ text: key, color: C.ink3, noWrap: true, margin: [0, 0, 12, 0] },
 		{ text: value, bold: true, alignment: 'right' }
 	];
 	const parties: Content = {
