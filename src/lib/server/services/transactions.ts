@@ -73,7 +73,7 @@ export async function listTransactions(
 		db
 			.select({ total: count(), income: paidSum('income'), expense: paidSum('expense') })
 			.from(transaction)
-			.innerJoin(client, eq(client.id, transaction.clientId))
+			.leftJoin(client, eq(client.id, transaction.clientId))
 			.leftJoin(project, eq(project.id, transaction.projectId))
 			.leftJoin(category, eq(category.id, transaction.categoryId))
 			.where(where),
@@ -108,10 +108,11 @@ export async function listTransactions(
 			projectId: transaction.projectId,
 			projectName: project.name,
 			invoiceId: transaction.invoiceId,
-			invoiceNumber: invoice.number
+			invoiceNumber: invoice.number,
+			isOverhead: sql<boolean>`coalesce(${category.isOverhead}, false)`
 		})
 		.from(transaction)
-		.innerJoin(client, eq(client.id, transaction.clientId))
+		.leftJoin(client, eq(client.id, transaction.clientId))
 		.leftJoin(project, eq(project.id, transaction.projectId))
 		.leftJoin(category, eq(category.id, transaction.categoryId))
 		.leftJoin(invoice, eq(invoice.id, transaction.invoiceId))
@@ -165,7 +166,12 @@ export type FinanceTotals = Awaited<ReturnType<typeof financeTotals>>;
 /** Categories for the form and the filter, grouped by type in their seed order */
 export function listCategories(db: DbOrTx) {
 	return db
-		.select({ id: category.id, type: category.type, name: category.name })
+		.select({
+			id: category.id,
+			type: category.type,
+			name: category.name,
+			isOverhead: category.isOverhead
+		})
 		.from(category)
 		.orderBy(asc(category.type), asc(category.sort), asc(category.name));
 }
@@ -191,8 +197,24 @@ export async function listTxnTargets(db: DbOrTx) {
 
 // ---------- create / edit / delete ----------
 
-/** Client, project and category must exist and fit together; returns the client's name */
+/**
+ * Category, client and project must exist and fit together. An overhead category (P2-08) means no
+ * client and no project; every other transaction needs a client. Returns whether it is overhead.
+ */
 async function checkRefs(tx: Tx, input: TransactionInput, isNew: boolean) {
+	const [cat] = await tx
+		.select({ type: category.type, isOverhead: category.isOverhead })
+		.from(category)
+		.where(eq(category.id, input.categoryId));
+	if (!cat) throw new ServiceError('Kategori tidak ditemukan.', 'categoryId');
+	if (cat.type !== input.type)
+		throw new ServiceError(
+			`Kategori ini untuk ${TXN_TYPE_LABELS[cat.type].long.toLowerCase()}.`,
+			'categoryId'
+		);
+	if (cat.isOverhead) return true;
+
+	if (!input.clientId) throw new ServiceError('Pilih klien.', 'clientId');
 	const [c] = await tx
 		.select({ id: client.id, archivedAt: client.archivedAt })
 		.from(client)
@@ -209,26 +231,16 @@ async function checkRefs(tx: Tx, input: TransactionInput, isNew: boolean) {
 		if (p.clientId !== input.clientId)
 			throw new ServiceError('Proyek ini milik klien lain.', 'projectId');
 	}
-
-	const [cat] = await tx
-		.select({ type: category.type })
-		.from(category)
-		.where(eq(category.id, input.categoryId));
-	if (!cat) throw new ServiceError('Kategori tidak ditemukan.', 'categoryId');
-	if (cat.type !== input.type)
-		throw new ServiceError(
-			`Kategori ini untuk ${TXN_TYPE_LABELS[cat.type].long.toLowerCase()}.`,
-			'categoryId'
-		);
+	return false;
 }
 
-const values = (input: TransactionInput) => ({
+const values = (input: TransactionInput, overhead: boolean) => ({
 	type: input.type,
 	status: input.status,
 	date: input.date,
 	amount: input.amount!,
-	clientId: input.clientId,
-	projectId: input.projectId || null,
+	clientId: overhead ? null : input.clientId,
+	projectId: overhead ? null : input.projectId || null,
 	categoryId: input.categoryId,
 	method: (input.method || null) as PaymentMethod | null,
 	description: input.description || null,
@@ -247,6 +259,25 @@ const summary = (
 ) =>
 	`${TXN_TYPE_LABELS[t.type].long} ${rupiah(t.amount)}${t.status === 'planned' ? ' (direncanakan)' : ''} ${verb}${t.description ? `: ${t.description}` : ''}`;
 
+/** Rule 5: on the client's timeline. Overhead has no client, so it has no timeline entry. */
+async function logTransaction(
+	tx: Tx,
+	row: typeof transaction.$inferSelect,
+	verb: string,
+	action: string,
+	userId: string
+) {
+	if (!row.clientId) return;
+	await logActivity(tx, {
+		clientId: row.clientId,
+		projectId: row.projectId,
+		type: 'transaction',
+		body: summary(verb, row),
+		meta: { transactionId: row.id, action },
+		userId
+	});
+}
+
 /** Insert + activity inside the caller's transaction; `invoiceId` links a payment (P2-07) */
 export async function insertTransaction(
 	tx: Tx,
@@ -254,19 +285,12 @@ export async function insertTransaction(
 	userId: string,
 	invoiceId: string | null = null
 ) {
-	await checkRefs(tx, input, true);
+	const overhead = await checkRefs(tx, input, true);
 	const [row] = await tx
 		.insert(transaction)
-		.values({ ...values(input), invoiceId, createdBy: userId })
+		.values({ ...values(input, overhead), invoiceId, createdBy: userId })
 		.returning();
-	await logActivity(tx, {
-		clientId: row.clientId,
-		projectId: row.projectId,
-		type: 'transaction',
-		body: summary('dicatat', row),
-		meta: { transactionId: row.id, action: 'created' },
-		userId
-	});
+	await logTransaction(tx, row, 'dicatat', 'created', userId);
 	return row;
 }
 
@@ -282,20 +306,13 @@ export async function updateTransaction(db: DbOrTx, input: TransactionInput, use
 			.where(eq(transaction.id, input.id))
 			.for('update');
 		if (!current) throw new ServiceError('Transaksi tidak ditemukan.');
-		await checkRefs(tx, input, false);
+		const overhead = await checkRefs(tx, input, false);
 		const [row] = await tx
 			.update(transaction)
-			.set(values(input))
+			.set(values(input, overhead))
 			.where(eq(transaction.id, input.id))
 			.returning();
-		await logActivity(tx, {
-			clientId: row.clientId,
-			projectId: row.projectId,
-			type: 'transaction',
-			body: summary('diubah', row),
-			meta: { transactionId: row.id, action: 'updated' },
-			userId
-		});
+		await logTransaction(tx, row, 'diubah', 'updated', userId);
 		// a payment keeps its invoice link; the invoice status follows the new amount / status
 		if (row.invoiceId) await syncInvoiceStatus(tx, row.invoiceId, userId);
 		return row;
@@ -306,14 +323,7 @@ export async function deleteTransaction(db: DbOrTx, id: string, userId: string) 
 	return db.transaction(async (tx) => {
 		const [row] = await tx.delete(transaction).where(eq(transaction.id, id)).returning();
 		if (!row) throw new ServiceError('Transaksi tidak ditemukan.');
-		await logActivity(tx, {
-			clientId: row.clientId,
-			projectId: row.projectId,
-			type: 'transaction',
-			body: summary('dihapus', row),
-			meta: { transactionId: row.id, action: 'deleted' },
-			userId
-		});
+		await logTransaction(tx, row, 'dihapus', 'deleted', userId);
 		if (row.invoiceId) await syncInvoiceStatus(tx, row.invoiceId, userId);
 		return row;
 	});

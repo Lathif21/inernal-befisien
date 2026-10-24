@@ -1,7 +1,8 @@
-// Finance tables from docs/02-DATA-MODEL.md. invoice / invoice_item and category.is_overhead come in Phase 2.
+// Finance tables from docs/02-DATA-MODEL.md, including the Phase 2 invoices and overhead costs.
 import { relations, sql } from 'drizzle-orm';
 import {
 	bigint,
+	boolean,
 	check,
 	date,
 	index,
@@ -25,6 +26,8 @@ export const category = pgTable(
 		id: uuid('id').primaryKey().defaultRandom(),
 		type: txnType('type').notNull(),
 		name: text('name').notNull(),
+		/** P2-08: expense not tied to a client (salaries, rent); its transactions have no client */
+		isOverhead: boolean('is_overhead').notNull().default(false),
 		sort: smallint('sort').notNull().default(0),
 		...timestamps
 	},
@@ -42,10 +45,8 @@ export const transaction = pgTable(
 		/** Whole IDR, always positive; direction comes from `type` */
 		amount: bigint('amount', { mode: 'number' }).notNull(),
 		categoryId: uuid('category_id').references(() => category.id),
-		/** Required in Phase 1; becomes nullable for overhead costs in P2-08 */
-		clientId: uuid('client_id')
-			.notNull()
-			.references(() => client.id),
+		/** Null only for overhead costs (P2-08); income always has a client */
+		clientId: uuid('client_id').references(() => client.id),
 		projectId: uuid('project_id').references(() => project.id),
 		/** P2-07: a payment against this invoice */
 		invoiceId: uuid('invoice_id').references((): AnyPgColumn => invoice.id),
@@ -57,6 +58,7 @@ export const transaction = pgTable(
 	},
 	(t) => [
 		check('transaction_amount_positive', sql`${t.amount} > 0`),
+		check('transaction_income_has_client', sql`${t.type} <> 'income' or ${t.clientId} is not null`),
 		index('transaction_client_date_idx').on(t.clientId, t.date),
 		index('transaction_date_type_status_idx').on(t.date, t.type, t.status),
 		index('transaction_project_idx').on(t.projectId)

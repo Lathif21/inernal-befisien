@@ -38,6 +38,12 @@
 					<h2 id="cat-{type}" class="text-section-title">{TXN_TYPE_LABELS[type].long}</h2>
 					<span class="text-small text-ink-3">{items.length} kategori</span>
 				</div>
+				{#if type === 'expense'}
+					<p class="text-small text-ink-2">
+						Kategori <b>Overhead</b> untuk biaya kantor tanpa klien (gaji, sewa). Transaksinya tidak terkait
+						klien dan masuk ke Laba Rugi sebagai overhead. Ditentukan saat kategori dibuat.
+					</p>
+				{/if}
 				<ul class="flex flex-col">
 					{#each items as c, i (c.id)}
 						<li class="flex items-center gap-2 border-b border-line py-2 last:border-b-0">
@@ -69,7 +75,8 @@
 								<span class="min-w-0 flex-1">
 									<span class="block truncate font-semibold">{c.name}</span>
 									<span class="text-small text-ink-3"
-										>{c.used ? `${c.used} transaksi` : 'Belum dipakai'}</span
+										>{#if c.isOverhead}<span class="bf-chip mr-1.5 py-0!">Overhead</span
+											>{/if}{c.used ? `${c.used} transaksi` : 'Belum dipakai'}</span
 									>
 								</span>
 								<form method="post" action="?/move" use:enhance={refreshThenToast()} class="flex">
@@ -115,7 +122,7 @@
 				<form
 					method="post"
 					action="?/save"
-					class="flex items-center gap-2 border-t border-line pt-3"
+					class="flex flex-wrap items-center gap-2 border-t border-line pt-3"
 					use:enhance={refreshThenToast({ end: (ok) => ok && (draft[type] = '') })}
 				>
 					<input type="hidden" name="type" value={type} />
@@ -130,6 +137,15 @@
 						placeholder="Kategori baru"
 						class="min-h-10 min-w-0 flex-1 rounded-control border border-line px-3 text-body"
 					/>
+					{#if type === 'expense'}
+						<label
+							class="flex min-h-10 items-center gap-2 text-small font-semibold text-ink-2"
+							title="Biaya kantor yang tidak terkait klien, mis. gaji atau sewa"
+						>
+							<input type="checkbox" name="isOverhead" class="size-4 accent-accent" />
+							Overhead
+						</label>
+					{/if}
 					<button
 						type="submit"
 						class="bf-btn bf-btn--secondary bf-btn--sm"

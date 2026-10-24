@@ -68,6 +68,25 @@ const CATEGORIES = {
 		'Lainnya'
 	]
 } as const;
+/** Expense categories not tied to a client (P2-08); migration 0008 inserts the same list */
+const OVERHEAD = [
+	'Gaji',
+	'Sewa Kantor',
+	'Internet & Utilitas',
+	'Marketing',
+	'Langganan Tools',
+	'Pajak & Admin Bank'
+] as const;
+
+// Overhead costs, paid: [daysFromToday, amount, category, description]
+const OVERHEAD_TXNS: [number, number, (typeof OVERHEAD)[number], string][] = [0, 30, 60].flatMap(
+	(ago) => [
+		[-ago - 3, 18_000_000, 'Gaji', 'Gaji tim'],
+		[-ago - 4, 4_500_000, 'Sewa Kantor', 'Sewa kantor Surabaya'],
+		[-ago - 6, 850_000, 'Internet & Utilitas', 'Internet + listrik'],
+		[-ago - 8, 1_200_000, 'Langganan Tools', 'Google Workspace, Figma, GitHub']
+	]
+);
 
 type ClientSeed = typeof client.$inferInsert & {
 	key: string;
@@ -642,6 +661,22 @@ await db.transaction(async (tx) => {
 			.returning();
 		for (const r of rows) cats.set(`${type}:${r.name}`, r.id);
 	}
+	const overheadRows = await tx
+		.insert(category)
+		.values(
+			OVERHEAD.map((name, i) => ({
+				type: 'expense' as const,
+				name,
+				isOverhead: true,
+				sort: 10 + i
+			}))
+		)
+		.onConflictDoUpdate({
+			target: [category.type, category.name],
+			set: { sort: sql`excluded.sort`, isOverhead: true }
+		})
+		.returning();
+	for (const r of overheadRows) cats.set(`expense:${r.name}`, r.id);
 
 	// Clients + contacts
 	const clientIds = new Map<string, string>();
@@ -775,6 +810,21 @@ await db.transaction(async (tx) => {
 			projectId: isProject ? projectIds.get(ref)! : null,
 			description,
 			method,
+			createdBy: owner.id
+		});
+	}
+
+	// Overhead (no client)
+	for (const [days, amount, cat, description] of OVERHEAD_TXNS) {
+		await tx.insert(transaction).values({
+			type: 'expense',
+			status: 'paid',
+			date: day(days),
+			amount,
+			categoryId: cats.get(`expense:${cat}`)!,
+			clientId: null,
+			description,
+			method: 'transfer',
 			createdBy: owner.id
 		});
 	}

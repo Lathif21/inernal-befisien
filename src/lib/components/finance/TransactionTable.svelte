@@ -65,10 +65,12 @@
 						<td>{t.categoryName ?? '–'}</td>
 						{#if showClient}
 							<td>
-								<a
-									href={resolve(`/(app)/clients/[id]?tab=keuangan`, { id: t.clientId })}
-									class="font-semibold text-ink hover:text-accent-ink">{t.clientName}</a
-								>
+								{#if t.clientId}
+									<a
+										href={resolve(`/(app)/clients/[id]?tab=keuangan`, { id: t.clientId })}
+										class="font-semibold text-ink hover:text-accent-ink">{t.clientName}</a
+									>
+								{:else}<span class="text-ink-3">Overhead</span>{/if}
 							</td>
 						{/if}
 						<td>

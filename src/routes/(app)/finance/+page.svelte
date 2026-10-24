@@ -7,6 +7,7 @@
 	import Pager from '#lib/components/Pager.svelte';
 	import PeriodFilter from '#lib/components/PeriodFilter.svelte';
 	import StatTile from '#lib/components/StatTile.svelte';
+	import FinanceTabs from '#lib/components/finance/FinanceTabs.svelte';
 	import TransactionFormDrawer from '#lib/components/finance/TransactionFormDrawer.svelte';
 	import TransactionTable from '#lib/components/finance/TransactionTable.svelte';
 	import Money from '#lib/components/money/Money.svelte';
@@ -68,6 +69,8 @@
 </Topbar>
 
 <main class="page-body gap-5!">
+	<FinanceTabs current="transaksi" />
+
 	<section class="grid grid-cols-2 gap-4 lg:grid-cols-4" aria-label="Ringkasan periode">
 		<StatTile
 			label="Pemasukan"

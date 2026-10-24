@@ -14,6 +14,7 @@ export function listCategoriesWithUsage(db: DbOrTx) {
 			id: category.id,
 			type: category.type,
 			name: category.name,
+			isOverhead: category.isOverhead,
 			sort: category.sort,
 			used: sql<number>`(select count(*)::int from ${transaction} where "transaction"."category_id" = "category"."id")`
 		})
@@ -56,7 +57,13 @@ export async function saveCategory(db: DbOrTx, input: CategoryInput) {
 			.where(eq(category.type, input.type));
 		const [row] = await tx
 			.insert(category)
-			.values({ type: input.type, name: input.name, sort: (last ?? -1) + 1 })
+			.values({
+				type: input.type,
+				name: input.name,
+				// overhead = expense without a client (P2-08); income always has a client
+				isOverhead: input.type === 'expense' && input.isOverhead,
+				sort: (last ?? -1) + 1
+			})
 			.returning();
 		return row;
 	});

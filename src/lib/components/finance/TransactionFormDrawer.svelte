@@ -27,7 +27,8 @@
 		status: TxnStatus;
 		date: string;
 		amount: number;
-		clientId: string;
+		/** null for overhead costs */
+		clientId: string | null;
 		projectId: string | null;
 		categoryId: string | null;
 		method: PaymentMethod | null;
@@ -37,7 +38,7 @@
 
 	type Props = {
 		form: SuperValidated<TransactionInput, FormMessage>;
-		categories: { id: string; type: TxnType; name: string }[];
+		categories: { id: string; type: TxnType; name: string; isOverhead?: boolean }[];
 		clients: { id: string; name: string; archived: boolean }[];
 		projects: { id: string; name: string; clientId: string }[];
 		/** On a client page the client is fixed */
@@ -89,7 +90,7 @@
 				status: t.status === 'cancelled' ? 'planned' : t.status,
 				date: t.date,
 				amount: t.amount,
-				clientId: t.clientId,
+				clientId: t.clientId ?? '',
 				projectId: t.projectId ?? '',
 				categoryId: t.categoryId ?? '',
 				method: t.method ?? '',
@@ -100,7 +101,13 @@
 		open = true;
 	}
 
-	const typeCategories = $derived(categories.filter((c) => c.type === $form.type));
+	// A client page has a fixed client, so overhead (no client, P2-08) is not offered there
+	const typeCategories = $derived(
+		categories.filter((c) => c.type === $form.type && !(lockClient && c.isOverhead))
+	);
+	const projectCategories = $derived(typeCategories.filter((c) => !c.isOverhead));
+	const overheadCategories = $derived(typeCategories.filter((c) => c.isOverhead));
+	const overhead = $derived(categories.find((c) => c.id === $form.categoryId)?.isOverhead === true);
 	const clientProjects = $derived(projects.filter((p) => p.clientId === $form.clientId));
 	// New transactions only go to active clients; an edit keeps its (maybe archived) client
 	const clientOptions = $derived(clients.filter((c) => !c.archived || c.id === editing?.clientId));
@@ -125,7 +132,7 @@
 		? `${TXN_TYPE_LABELS[editing.type].long} ${rupiah(editing.amount)}`
 		: lockClient
 			? clientName
-			: 'Pemasukan atau pengeluaran untuk satu klien.'}
+			: 'Pemasukan, pengeluaran proyek, atau biaya overhead.'}
 >
 	<form
 		id="transaction-form"
@@ -195,46 +202,64 @@
 			</div>
 		</div>
 
-		<Field label="Klien" name="clientId" required errors={$errors.clientId}>
+		<Field label="Kategori" name="categoryId" required errors={$errors.categoryId}>
 			{#snippet children(attrs)}
-				{#if lockClient}
-					<input type="hidden" name="clientId" value={$form.clientId} />
-					<input id={attrs.id} value={clientName} readonly class="bg-tint-2!" />
-				{:else}
-					<select
-						{...attrs}
-						value={$form.clientId}
-						onchange={(e) => setClient(e.currentTarget.value)}
-					>
-						<option value="">Pilih klien</option>
-						{#each clientOptions as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
-					</select>
-				{/if}
+				<select {...attrs} bind:value={$form.categoryId}>
+					<option value="">Pilih kategori</option>
+					{#if overheadCategories.length}
+						<optgroup label="Biaya proyek">
+							{#each projectCategories as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+						</optgroup>
+						<optgroup label="Overhead (tanpa klien)">
+							{#each overheadCategories as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+						</optgroup>
+					{:else}
+						{#each typeCategories as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+					{/if}
+				</select>
 			{/snippet}
 		</Field>
 
+		{#if overhead}
+			<p class="rounded-control bg-tint-2 px-3.5 py-2.5 text-small font-semibold text-ink-2">
+				Biaya overhead tidak terkait klien atau proyek. Masuk ke Laba Rugi sebagai overhead.
+			</p>
+		{:else}
+			<Field label="Klien" name="clientId" required errors={$errors.clientId}>
+				{#snippet children(attrs)}
+					{#if lockClient}
+						<input type="hidden" name="clientId" value={$form.clientId} />
+						<input id={attrs.id} value={clientName} readonly class="bg-tint-2!" />
+					{:else}
+						<select
+							{...attrs}
+							value={$form.clientId}
+							onchange={(e) => setClient(e.currentTarget.value)}
+						>
+							<option value="">Pilih klien</option>
+							{#each clientOptions as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+						</select>
+					{/if}
+				{/snippet}
+			</Field>
+		{/if}
+
 		<div class="grid gap-4 sm:grid-cols-2">
-			<Field
-				label="Proyek"
-				name="projectId"
-				errors={$errors.projectId}
-				hint={$form.clientId && clientProjects.length === 0 ? 'Klien ini belum punya proyek' : ''}
-			>
-				{#snippet children(attrs)}
-					<select {...attrs} bind:value={$form.projectId} disabled={!$form.clientId}>
-						<option value="">Tanpa proyek</option>
-						{#each clientProjects as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
-					</select>
-				{/snippet}
-			</Field>
-			<Field label="Kategori" name="categoryId" required errors={$errors.categoryId}>
-				{#snippet children(attrs)}
-					<select {...attrs} bind:value={$form.categoryId}>
-						<option value="">Pilih kategori</option>
-						{#each typeCategories as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
-					</select>
-				{/snippet}
-			</Field>
+			{#if !overhead}
+				<Field
+					label="Proyek"
+					name="projectId"
+					errors={$errors.projectId}
+					hint={$form.clientId && clientProjects.length === 0 ? 'Klien ini belum punya proyek' : ''}
+				>
+					{#snippet children(attrs)}
+						<select {...attrs} bind:value={$form.projectId} disabled={!$form.clientId}>
+							<option value="">Tanpa proyek</option>
+							{#each clientProjects as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+						</select>
+					{/snippet}
+				</Field>
+			{/if}
 			<Field label="Metode" name="method" errors={$errors.method}>
 				{#snippet children(attrs)}
 					<select {...attrs} bind:value={$form.method}>

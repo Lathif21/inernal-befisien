@@ -38,7 +38,11 @@ export const categorySchema = z.object({
 		.string()
 		.trim()
 		.min(2, 'Nama kategori minimal 2 karakter.')
-		.max(60, 'Nama kategori maksimal 60 karakter.')
+		.max(60, 'Nama kategori maksimal 60 karakter.'),
+	/** Only for a new expense category (checkbox posts "on"); fixed afterwards */
+	isOverhead: z
+		.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean())
+		.default(false)
 });
 export type CategoryInput = z.infer<typeof categorySchema>;
 
