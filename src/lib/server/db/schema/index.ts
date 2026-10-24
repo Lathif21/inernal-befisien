@@ -3,3 +3,4 @@ export * from './auth';
 export * from './crm';
 export * from './finance';
 export * from './settings';
+export * from './bot';

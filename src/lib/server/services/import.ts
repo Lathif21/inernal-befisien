@@ -87,10 +87,24 @@ export async function runImport(db: DbOrTx, text: string, userId: string): Promi
 		if (preview.fileErrors.length) throw new ServiceError(preview.fileErrors[0]);
 		const rows = preview.lines.flatMap((l) => (l.row ? [l.row] : []));
 		if (rows.length === 0) throw new ServiceError('Tidak ada baris yang valid untuk diimpor.');
+		return (await importRows(tx, rows, userId, preview.invalid)).summary;
+	});
+}
 
+/**
+ * Write checked rows (from a file or the Telegram bot) in one transaction. Clients are matched by
+ * name among the ones not archived.
+ */
+export async function importRows(
+	db: DbOrTx,
+	rows: ImportRow[],
+	userId: string,
+	skippedRows = 0
+): Promise<{ summary: ImportSummary; clientIds: string[] }> {
+	return db.transaction(async (tx) => {
 		const summary: ImportSummary = {
 			rows: rows.length,
-			skippedRows: preview.invalid,
+			skippedRows,
 			clientsCreated: 0,
 			clientsMatched: 0,
 			contactsAdded: 0,
@@ -106,7 +120,7 @@ export async function runImport(db: DbOrTx, text: string, userId: string): Promi
 			if (row.contact) await addContact(tx, clientId, row.contact, summary, userId);
 			if (row.deal) await addDeal(tx, clientId, row.deal, summary, userId);
 		}
-		return summary;
+		return { summary, clientIds: [...clientIds.values()] };
 	});
 }
 

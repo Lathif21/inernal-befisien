@@ -47,6 +47,16 @@ export async function unlinkTelegram(db: DbOrTx, by: { userId: string } | { chat
 	return rows;
 }
 
+/** The user this chat is linked to (bot input), or null */
+export async function linkedUser(db: DbOrTx, chatId: string) {
+	const [row] = await db
+		.select({ id: user.id, name: user.name })
+		.from(user)
+		.where(eq(user.telegramChatId, chatId))
+		.limit(1);
+	return row ?? null;
+}
+
 /** Digest switches of Settings */
 export async function setDigestPrefs(
 	db: DbOrTx,

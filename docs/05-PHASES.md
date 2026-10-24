@@ -280,6 +280,14 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 
 - `invoice-mark-overdue` (00:15 WIB), `invoice-due-reminder` (08:00 WIB, due in 3 days). Both are listed in the digest.
 
+### [ ] P2-10 Telegram input (chat and voice note)
+
+- Linked users send a message or a voice note to the bot. Voice is transcribed with Groq Whisper (`GROQ_API_KEY`). The AI (Sumopod, JSON schema) turns it into one draft: **lead** (client, contact and deal, with the CSV import columns and checks), **langkah** on a deal or project, **pindah tahap** of a deal, **rencana** Strategi with its steps, or **catatan** on the timeline.
+- The webhook only queues the Trigger.dev task `telegram-inbound` and answers at once; the task replies with a preview and the buttons **Simpan** / **Batal**. Nothing is written before Simpan. A message sent while a draft is open may correct it ("nilainya 30 juta"). Drafts expire after 30 minutes.
+- Simpan reuses the services (`importRows`, `addAction`, `moveDeal`, `createPlan` + `addPlanStep`, `logActivity`) in one transaction, under the sender's name.
+- **Done when:** a text and a voice note each give a correct draft for every kind; Simpan writes it once (a second tap does nothing); Batal and expiry write nothing; a correction replaces the draft; unlinked chats get the link instructions; the webhook's `allowed_updates` includes `callback_query`.
+- _Status (24 Okt 2026): built, not deployed. Migration 0009 `telegram_draft` (applied on dev). DB tests with a fake AI / Telegram cover every kind, the second tap, Batal, expiry, a correction and an unlinked chat. A read-only run with the production model (MiniMax) on the dev data gave correct drafts for a lead, a step, a stage move, a plan with 3 steps, a call note and a greeting (no draft); ~1.7k tokens in, 0.2-2k out, 3-20 s each. MiniMax ignores nested objects in the JSON schema, so plan steps are strings `YYYY-MM-DDTHH:mm | judul`. The Groq key lists `whisper-large-v3`; a real voice note is still untested. Open: deploy (Trigger.dev task + `GROQ_API_KEY`, `TRIGGER_SECRET_KEY` = prod key on Vercel, migration 0009 on production), `npm run telegram:webhook -- --url https://befisien-crm.vercel.app`, then one text and one voice note per kind in Telegram._
+
 ---
 
 ## Phase 3 — Productivity

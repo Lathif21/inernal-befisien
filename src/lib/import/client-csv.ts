@@ -32,7 +32,8 @@ export const IMPORT_COLUMNS = [
 	'next_action_due',
 	'notes'
 ] as const;
-type Column = (typeof IMPORT_COLUMNS)[number];
+export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
+type Column = ImportColumn;
 
 /** Keeps the file small enough to preview and import in one request */
 export const MAX_IMPORT_ROWS = 1000;
@@ -122,7 +123,10 @@ function money(v: string) {
 	return /^\d{1,15}$/.test(cleaned) ? Number(cleaned) : NaN;
 }
 
-function validate(raw: Partial<Record<Column, string>>): Omit<ParsedLine, 'line' | 'raw'> {
+/** One row of cells (CSV or the Telegram bot) → a checked row with Indonesian errors */
+export function validateRow(
+	raw: Partial<Record<Column, string>>
+): Omit<ParsedLine, 'line' | 'raw'> {
 	const errors: string[] = [];
 	const warnings: string[] = [];
 	const v = (c: Column) => (raw[c] ?? '').trim();
@@ -254,7 +258,7 @@ export function parseClientCsv(text: string): ParsedFile {
 	const lines = result.data.map((cells, i) => {
 		const raw: Partial<Record<Column, string>> = {};
 		for (const c of IMPORT_COLUMNS) if (cells[c] !== undefined) raw[c] = String(cells[c]);
-		const checked = validate(raw);
+		const checked = validateRow(raw);
 		const broken = rowErrors.get(i);
 		return {
 			// header is line 1; this ignores blank lines skipped in between (rare in exports)

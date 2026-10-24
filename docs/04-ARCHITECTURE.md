@@ -45,7 +45,10 @@
           ├──▶ Resend            (digest email, from info@befisien.com)
           └──▶ LLM API           (AI suggestions, P2)
 
-     Telegram ──webhook──▶ /api/telegram  (links a user's chat ID via /start <code>)
+     Telegram ──webhook──▶ /api/telegram  (links a user's chat ID via /start <code>;
+                                           queues telegram-inbound for messages and voice
+                                           notes; handles the Simpan / Batal buttons)
+     telegram-inbound ──▶ Groq Whisper (voice) ──▶ LLM API (draft) ──▶ Telegram (preview)
 ```
 
 ## Repository structure
@@ -172,12 +175,15 @@ export async function sendTelegram(chatId: string, text: string) {
 
 **Linking Telegram:** Settings → "Hubungkan Telegram" creates a one-time code. The user opens `t.me/<bot>?start=<code>`. Telegram calls the webhook `POST /api/telegram` (verified with the `X-Telegram-Bot-Api-Secret-Token` header). The route matches the code and saves `user.telegram_chat_id`.
 
+**Telegram input (P2-10):** a linked user sends a message or a voice note. The webhook queues the task `telegram-inbound` (idempotency key = the update ID, so Telegram's retries do not run it twice) and answers with a typing indicator. The task transcribes voice notes with Groq Whisper (`whisper-large-v3`, Indonesian), gives the LLM the message plus a short list of clients, open deals and running projects (refs K1 / D1 / P1 instead of UUIDs), and checks the answer: a lead goes through the CSV import checks (`validateRow`), steps need a card and a WIB time, a lost deal needs a reason. It stores a `telegram_draft` and replies with a preview and the buttons **Simpan** / **Batal**. Simpan (in the webhook, one DB transaction) writes through the normal services and marks the draft saved, so a second tap does nothing. Drafts expire after 30 minutes. A message sent while a draft is open may correct it; the old draft becomes `replaced`. Register the webhook with `npm run telegram:webhook -- --url <app>` (`allowed_updates`: `message`, `callback_query`).
+
 | Task                              | Schedule (WIB)                                                               | Phase |
 | --------------------------------- | ---------------------------------------------------------------------------- | ----- |
 | `daily-digest` (Telegram + email) | every day 07:30                                                              | 1     |
 | `ai-suggestions`                  | every day 06:30 (before the digest, so new suggestions can be counted in it) | 2     |
 | `ai-suggest-now`                  | triggered by "Minta saran AI" (not scheduled)                                | 2     |
 | `ai-expire-suggestions`           | every day 00:30                                                              | 2     |
+| `telegram-inbound`                | queued by the Telegram webhook for each message or voice note                | 2     |
 | `invoice-mark-overdue`            | every day 00:15                                                              | 2     |
 | `invoice-due-reminder`            | every day 08:00 (due in 3 days)                                              | 2     |
 | `recurring-income`                | 1st of month 01:00                                                           | 3     |
@@ -208,8 +214,9 @@ RESEND_API_KEY=…
 MAIL_FROM="Befisien CRM <info@befisien.com>"
 TELEGRAM_BOT_TOKEN=…                     # from @BotFather
 TELEGRAM_WEBHOOK_SECRET=…
-TRIGGER_SECRET_KEY=…                     # the app triggers "ai-suggest-now"
+TRIGGER_SECRET_KEY=…                     # the webhook queues "telegram-inbound"
 AI_API_KEY=…                             # Phase 2
+GROQ_API_KEY=…                           # Trigger.dev only: voice-note transcripts (P2-10)
 TZ=Asia/Jakarta
 ```
 

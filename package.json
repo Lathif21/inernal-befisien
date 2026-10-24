@@ -20,7 +20,8 @@
 		"db:studio": "drizzle-kit studio",
 		"user:create": "tsx scripts/create-user.ts",
 		"db:seed": "tsx scripts/seed.ts",
-		"ai:suggest": "tsx scripts/ai-suggest.ts"
+		"ai:suggest": "tsx scripts/ai-suggest.ts",
+		"telegram:webhook": "tsx scripts/telegram-webhook.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

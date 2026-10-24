@@ -46,6 +46,11 @@ export const variables = defineEnvVars({
 		description: 'OpenAI-compatible base URL; default https://ai.sumopod.com/v1',
 		schema: optional
 	},
+	TRIGGER_SECRET_KEY: {
+		description:
+			'Trigger.dev secret key (tr_dev_… locally, tr_prod_… on the server); the Telegram webhook queues telegram-inbound with it',
+		schema: optional
+	},
 	MAIL_FROM: {
 		description: 'Sender of app email, e.g. "Befisien CRM <info@befisien.com>"',
 		schema: optional

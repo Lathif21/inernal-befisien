@@ -103,6 +103,11 @@
 						Ringkasan dikirim ke chat Anda dengan @{data.bot}. Kirim /stop di Telegram atau putuskan
 						di sini.
 					</p>
+					<p class="text-small text-ink-2">
+						Anda juga bisa mencatat lewat chat atau voice note ke bot: lead baru, langkah, pindah
+						tahap deal, rencana strategi, atau catatan klien. Bot mengirim draf dulu; data tersimpan
+						setelah Anda menekan <b>Simpan</b>. Kirim /bantuan untuk contoh.
+					</p>
 					<form method="post" action="?/unlinkTelegram" use:enhance={track('unlink')}>
 						<button type="submit" class="bf-btn bf-btn--secondary bf-btn--sm" disabled={!!busy}
 							>Putuskan Telegram</button
@@ -142,7 +147,8 @@
 					</p>
 				{:else}
 					<p class="text-small text-ink-2">
-						Hubungkan sekali untuk menerima ringkasan di Telegram (@{data.bot}).
+						Hubungkan sekali untuk menerima ringkasan di Telegram (@{data.bot}) dan mencatat data
+						lewat chat atau voice note.
 					</p>
 					<form method="post" action="?/linkTelegram" use:enhance={track('link')}>
 						<button type="submit" class="bf-btn bf-btn--primary bf-btn--sm" disabled={!!busy}>
