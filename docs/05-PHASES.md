@@ -201,7 +201,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - `daily-digest` scheduled task (07:30 Asia/Jakarta): late / today (with times) / tomorrow, sent to **Telegram** and **email** (Resend, from `info@befisien.com`, Befisien style, button "Buka Strategi")
 - Settings → digest on/off and channels per user
 - **Done when:** both users have linked Telegram, a test run sends the correct Telegram message and email, nothing is sent on empty days, and it is deployed. (Telegram in Phase 1 is a proposal waiting for confirmation, see README.)
-- _Status: live on staging. Trigger.dev `daily-digest` deployed (v20261023.1, prod, 07:30 Asia/Jakarta, env vars set); a test run sent the email to nama@ (1 step) and correctly sent nothing to info@ (nothing due). info@ is linked to @Befisienbot. Still open: link nama@ to Telegram, and one test run where a linked user has steps due, to see the Telegram message._
+- _Status: live on staging. Trigger.dev `daily-digest` deployed (v20261023.1, prod, 07:30 Asia/Jakarta, env vars set); a test run sent the email to nama@ (1 step) and correctly sent nothing to info@ (nothing due). info@ is linked to @Befisienbot. Update (25 Okt 2026): nama@ was removed (a placeholder account); info@ is the only user and is linked. Still open: one morning where info@ has steps (or invoices) due, to see the Telegram message arrive._
 
 ### [x] P1-13 Settings: users & categories
 
@@ -220,7 +220,7 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - Mobile pass on every page
 - Playwright smoke tests: login, create client, move deal to won → project, add transaction, dashboard totals
 - **Done when:** the Phase 1 acceptance criteria in `01-PRD.md` §8 all pass on production, and the notes are imported.
-- _Status (24 Okt 2026): error pages, navigation progress bar, empty-state pass, mobile pass (every page at 390px, staging and dev) and `npm run test:e2e` (5 smoke flows, run on dev) are done. PRD §8 on staging: sign-up refused (400) and both admins exist; boards, won → project, lost reason, steps, Strategi, dashboard (Waktu = Klien = Keuangan for 6 periods), client finance filters, CSV import and phone layout were verified per task. Open: the 07:30 digest arriving on Telegram (nama@ not linked yet), importing the real notes, and production on the VPS (P0-05)._
+- _Status (24 Okt 2026): error pages, navigation progress bar, empty-state pass, mobile pass (every page at 390px, staging and dev) and `npm run test:e2e` (5 smoke flows, run on dev) are done. PRD §8 on staging: sign-up refused (400) and both admins exist; boards, won → project, lost reason, steps, Strategi, dashboard (Waktu = Klien = Keuangan for 6 periods), client finance filters, CSV import and phone layout were verified per task. Open: the 07:30 digest arriving on Telegram (P1-12) and production on the VPS (P0-05). The real notes were imported (24 Okt 2026)._
 
 ---
 
@@ -276,9 +276,10 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - `category.is_overhead`. Expense without a client. Finance tab **Laba Rugi**: monthly table of income, direct costs, gross profit, overhead and net.
 - _Note: migration 0008 adds `category.is_overhead`, makes `transaction.client_id` nullable with the check "income always has a client", and inserts the overhead categories Gaji, Sewa Kantor, Internet & Utilitas, Marketing, Langganan Tools, Pajak & Admin Bank. Rule (services/transactions.ts `checkRefs`): an overhead category stores no client and no project; every other transaction needs a client. Overhead has no client timeline, so it logs no activity. The drawer asks for the category first, groups expense categories into "Biaya proyek" / "Overhead (tanpa klien)" and hides Klien / Proyek for overhead; the client page does not offer overhead. Settings → Kategori: an expense category can be created as Overhead (badge; fixed afterwards). Keuangan lists overhead rows with "Overhead" in the client column; the Dashboard and Keuangan "Laba" now include overhead (net), per-client figures do not. **Laba Rugi** is `/finance/laba-rugi` (tab next to Transaksi, year switcher): per month paid income, direct costs (non-overhead expense), gross profit, overhead, net profit and margin, a total row, tiles for the year and overhead per category; months after the current one show "–". Cash basis, like the rest of the app._
 
-### [ ] P2-09 Trigger.dev: invoice jobs
+### [x] P2-09 Trigger.dev: invoice jobs
 
 - `invoice-mark-overdue` (00:15 WIB), `invoice-due-reminder` (08:00 WIB, due in 3 days). Both are listed in the digest.
+- _Note: `services/invoice-jobs.ts` + `src/trigger/invoice-jobs.ts`. **Overdue:** only "Terkirim" invoices past their due date become "Jatuh tempo" (partly paid ones stay "Dibayar sebagian", like the P2-07 rules), logged on the client timeline. **Reminder (decided 25 Okt 2026: team only, never the client):** unpaid invoices due exactly 3 days from today go to every user with the digest on, by their digest channels; nothing when none are due; no task retry (it would message twice). **Digest:** new sections "Invoice lewat jatuh tempo" (every unpaid invoice past due, with what is left to receive) and "Invoice segera jatuh tempo" (due today to 3 days), a "Buka Invoice" link, and invoices alone are enough to send it. Settings "Kirim tes" includes them._
 
 ### [ ] P2-10 Telegram input (chat and voice note)
 

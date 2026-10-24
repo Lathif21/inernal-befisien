@@ -32,7 +32,18 @@ export default defineConfig({
 					name: 'server',
 					environment: 'node',
 					include: ['src/**/*.{test,spec}.{js,ts}'],
-					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
+					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}', 'src/**/*.db.spec.ts']
+				}
+			},
+			{
+				extends: './vite.config.ts',
+				test: {
+					// Neon dev branch tests: one file at a time, so parallel files do not starve the
+					// slow connections (~2.5 s each) into timeouts
+					name: 'db',
+					environment: 'node',
+					include: ['src/**/*.db.spec.ts'],
+					fileParallelism: false
 				}
 			}
 		]

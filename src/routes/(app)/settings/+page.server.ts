@@ -7,6 +7,7 @@ import { appUrl, senders } from '#lib/server/digest-senders.ts';
 import { requireUser } from '#lib/server/guards.ts';
 import { countOpenSuggestions } from '#lib/server/services/ai-suggestions.ts';
 import { getDigestUser, sendDigest, type ChannelResult } from '#lib/server/services/digest.ts';
+import { invoiceAttention } from '#lib/server/services/invoice-jobs.ts';
 import {
 	createLinkCode,
 	setDigestPrefs,
@@ -83,10 +84,15 @@ export const actions: Actions = {
 		const me = requireUser(locals);
 		const u = await getDigestUser(db, me.id);
 		if (!u) return fail(400, { error: 'Pengguna tidak ditemukan.' });
-		const r = await sendDigest(db, u, { appUrl, senders, aiNew: await countOpenSuggestions(db) });
-		if (r.total === 0)
+		const r = await sendDigest(db, u, {
+			appUrl,
+			senders,
+			aiNew: await countOpenSuggestions(db),
+			invoices: await invoiceAttention(db)
+		});
+		if (r.telegram === 'skipped' && r.mail === 'skipped')
 			return {
-				done: 'Tidak ada langkah terlambat, hari ini, atau besok, jadi tidak ada yang dikirim.'
+				done: 'Tidak ada langkah atau invoice yang perlu diingatkan, jadi tidak ada yang dikirim.'
 			};
 		if (r.errors.length) console.error('test digest', r.errors);
 		const text = `${r.total} langkah · Telegram ${CHANNEL_TEXT[r.telegram]} · email ${CHANNEL_TEXT[r.mail]}`;
