@@ -75,6 +75,12 @@ describe('invoice PDF', () => {
 			expect(text).toContain(s);
 	});
 
+	it('signs above the signer name', () => {
+		const doc = invoiceDocument(inv, company);
+		expect(JSON.stringify(doc.content)).toContain('"image":"signature"');
+		expect(doc.images?.signature).toMatch(/^data:image\/png;base64,/);
+	});
+
 	it('leaves taxes that are off out of the totals, and marks drafts', () => {
 		const doc = invoiceDocument(
 			{

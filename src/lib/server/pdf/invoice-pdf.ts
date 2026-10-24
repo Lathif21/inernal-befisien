@@ -4,6 +4,8 @@ import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interface
 import regularFont from '@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-400-normal.woff?inline';
 import boldFont from '@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-700-normal.woff?inline';
 import logoSvg from '../../../../static/logo-mark.svg?raw';
+// kept out of static/ so the signature is not a public download
+import signaturePng from './signature.png?inline';
 import { dateID, npwpDisplay, phoneDisplay, rupiah } from '../../format';
 import { terbilangRupiah } from '../../terbilang';
 import type { CompanyProfile } from '../services/company';
@@ -287,7 +289,7 @@ export function invoiceDocument(inv: InvoiceDetail, company: CompanyProfile): TD
 						color: C.ink2
 					},
 					{ text: 'Hormat kami,', color: C.ink2 },
-					{ text: ' ', margin: [0, 44, 0, 0] },
+					{ image: 'signature', fit: [120, 62], alignment: 'center', margin: [0, 2, 0, 2] },
 					company.signerName
 						? { text: company.signerName, bold: true, decoration: 'underline' }
 						: { text: company.name, bold: true },
@@ -311,6 +313,7 @@ export function invoiceDocument(inv: InvoiceDetail, company: CompanyProfile): TD
 			fontFeatures: NO_LIGATURES
 		},
 		watermark: mark && { ...mark, opacity: 0.08, bold: true },
+		images: { signature: signaturePng },
 		content: [header, rule, parties, items, totals, closing],
 		footer: (page, pages) => ({
 			margin: [40, 16, 40, 0],
