@@ -12,11 +12,19 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const VOCABULARY =
 	'Catatan CRM Befisien dalam Bahasa Indonesia: klien, PT, CV, deal, lead, proposal, negosiasi, meeting, follow up, invoice, Rupiah, juta, miliar, WhatsApp, website, dashboard, AI agent, otomasi, integrasi.';
 
+/**
+ * Groq checks the extension and refuses Telegram's voice notes (`voice/file_12.oga`), although
+ * the content is Ogg Opus, which it accepts as `.ogg`.
+ */
+export function groqFileName(filename: string) {
+	return filename.replace(/\.oga$/i, '.ogg');
+}
+
 export function groqTranscriber(config: { apiKey: string; model?: string }): Transcribe {
 	return async (audio, filename) => {
 		if (!config.apiKey) throw new Error('GROQ_API_KEY is not set');
 		const form = new FormData();
-		form.append('file', audio, filename);
+		form.append('file', audio, groqFileName(filename));
 		form.append('model', config.model || DEFAULT_STT_MODEL);
 		form.append('language', 'id');
 		form.append('prompt', VOCABULARY);
