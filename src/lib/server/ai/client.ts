@@ -19,10 +19,12 @@ export type AiRequest = {
 	schema: Record<string, unknown>;
 	schemaName: string;
 	maxTokens?: number;
+	/** The answer may be plain text when the model ignores the schema (one-text answers) */
+	allowText?: boolean;
 };
 
 export type AiResult = {
-	/** Parsed JSON; still to be validated by the caller (Zod) */
+	/** Parsed JSON, or the text itself with `allowText`; still to be validated by the caller */
 	json: unknown;
 	model: string;
 	usage: { input: number; output: number } | null;
@@ -64,12 +66,16 @@ export function sumopodClient(config: AiConfig): AiComplete {
 		};
 		const choice = data.choices?.[0];
 		if (choice?.finish_reason === 'length') throw new Error('AI answer was cut off (max_tokens)');
-		const text = choice?.message?.content ?? '';
+		// Some models wrap the JSON in a ```json fence, or skip the schema and answer in prose
+		const text = (choice?.message?.content ?? '')
+			.trim()
+			.replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/, '$1');
 		let json: unknown;
 		try {
 			json = JSON.parse(text);
 		} catch {
-			throw new Error(`AI answer is not JSON: ${text.slice(0, 200)}`);
+			if (!req.allowText || !text) throw new Error(`AI answer is not JSON: ${text.slice(0, 200)}`);
+			json = text;
 		}
 		return {
 			json,

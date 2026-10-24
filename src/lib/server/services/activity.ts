@@ -96,3 +96,17 @@ export async function addNote(db: DbOrTx, clientId: string, input: NoteInput, us
 		occurredAt: (input.occurredAt && wibLocalToDate(input.occurredAt)) || undefined
 	});
 }
+
+/** "Tambah catatan" in Riwayat deal: on the deal's and its client's timeline (client feedback) */
+export async function addDealNote(db: DbOrTx, dealId: string, input: NoteInput, userId: string) {
+	const [d] = await db.select({ clientId: deal.clientId }).from(deal).where(eq(deal.id, dealId));
+	if (!d) throw new ServiceError('Deal tidak ditemukan.');
+	return logActivity(db, {
+		clientId: d.clientId,
+		dealId,
+		type: input.type,
+		body: input.body,
+		userId,
+		occurredAt: (input.occurredAt && wibLocalToDate(input.occurredAt)) || undefined
+	});
+}

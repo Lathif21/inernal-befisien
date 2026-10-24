@@ -8,6 +8,7 @@ import {
 	expireSuggestions,
 	generateSuggestions
 } from '../lib/server/services/ai-suggestions';
+import { refreshClientContext } from '../lib/server/services/client-context';
 
 const env = (name: string) => process.env[name] ?? '';
 
@@ -17,7 +18,8 @@ function database() {
 }
 
 /**
- * Every morning at 06:30 WIB (before the 07:30 digest): suggestions for each active client.
+ * Every morning at 06:30 WIB (before the 07:30 digest): for each active client, first the
+ * Ringkasan konteks (only when its history changed), then the suggestions, which read it.
  * Clients whose facts did not change since the last run are skipped without an AI call. One
  * failing client is logged and does not stop the others; there is no task-level retry, so a
  * retry never pays twice for clients that already succeeded.
@@ -42,6 +44,7 @@ export const aiSuggestions = schedules.task({
 			skipped: 0,
 			failed: 0,
 			suggestions: 0,
+			contextsUpdated: 0,
 			tokensIn: 0,
 			tokensOut: 0
 		};
@@ -50,6 +53,18 @@ export const aiSuggestions = schedules.task({
 			summary.clients = ids.length;
 			logger.info('active clients', { count: ids.length, model });
 			for (const id of ids) {
+				try {
+					const c = await refreshClientContext(db, id, { complete });
+					if (c.status === 'updated') {
+						summary.contextsUpdated++;
+						summary.tokensIn += c.usage?.input ?? 0;
+						summary.tokensOut += c.usage?.output ?? 0;
+						logger.info('context updated', { clientId: id, usage: c.usage });
+					}
+				} catch (e) {
+					// A stale summary still beats no suggestions
+					logger.error('context failed', { clientId: id, error: String(e).slice(0, 500) });
+				}
 				try {
 					const r = await generateSuggestions(db, id, { complete, now: payload.timestamp });
 					if (r.status === 'skipped') {

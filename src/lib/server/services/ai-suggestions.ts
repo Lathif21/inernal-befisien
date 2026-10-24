@@ -38,6 +38,7 @@ import {
 	aiSuggestion,
 	category,
 	client,
+	clientContext,
 	contact,
 	deal,
 	invoice,
@@ -278,6 +279,12 @@ export async function buildClientContext(db: DbOrTx, clientId: string) {
 			.limit(HISTORY_LIMIT)
 	]);
 
+	// The long memory: the whole history condensed (services/client-context.ts)
+	const [summary] = await db
+		.select({ text: clientContext.summary })
+		.from(clientContext)
+		.where(eq(clientContext.clientId, clientId));
+
 	const planned = txns.filter((t) => t.status === 'planned').slice(-PLANNED_TXN_LIMIT);
 	const paid = txns.filter((t) => t.status === 'paid').slice(0, PAID_TXN_LIMIT);
 
@@ -305,6 +312,7 @@ export async function buildClientContext(db: DbOrTx, clientId: string) {
 			kota: c.city,
 			catatan: cut(c.notes, 500)
 		},
+		ringkasan_konteks: summary?.text ?? null,
 		deal_terbuka: deals.map((d) => ({
 			id: d.id,
 			judul: d.title,

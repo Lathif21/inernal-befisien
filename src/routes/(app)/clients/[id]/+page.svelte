@@ -19,6 +19,7 @@
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import Pager from '#lib/components/Pager.svelte';
 	import AiPanel from '#lib/components/ai/AiPanel.svelte';
+	import ClientContextCard from '#lib/components/clients/ClientContextCard.svelte';
 	import PeriodFilter from '#lib/components/PeriodFilter.svelte';
 	import StatTile from '#lib/components/StatTile.svelte';
 	import TransactionFormDrawer from '#lib/components/finance/TransactionFormDrawer.svelte';
@@ -413,6 +414,13 @@
 						</div>
 					</dl>
 				</section>
+
+				<ClientContextCard
+					clientId={c.id}
+					context={data.context}
+					editable={!archived}
+					aiEnabled={data.aiEnabled}
+				/>
 
 				<section class="flex flex-col gap-3 rounded-card bg-surface p-5">
 					<div class="flex items-center justify-between gap-2">

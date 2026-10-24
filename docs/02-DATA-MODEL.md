@@ -187,6 +187,18 @@ invoice_status = 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'void'; // 
 | input_hash                     | text                      | Hash of the context sent, to avoid re-asking when nothing changed |
 | decided_by / decided_at        | text → user / timestamptz | Who accepted or dismissed it                                      |
 
+### `client_context` (Ringkasan konteks, client feedback)
+
+| Column     | Type                  | Notes                                                                    |
+| ---------- | --------------------- | ------------------------------------------------------------------------ |
+| client_id  | uuid PK → client      | One row per client, deleted with it                                      |
+| summary    | text, not null        | What Befisien knows about the client, in short sections                  |
+| source     | text                  | `ai` or `team` (who wrote the current text)                              |
+| input_hash | text                  | Hash of the history the AI last summarised; unchanged history is skipped |
+| model      | text                  | Model of the last AI update                                              |
+| updated_by | text → user, nullable | null when the AI wrote it                                                |
+| updated_at | timestamptz           |                                                                          |
+
 ### `activity` (timeline)
 
 | Column               | Type            | Notes                                                                        |

@@ -14,6 +14,7 @@ import {
 	dismissSuggestion,
 	generateSuggestions
 } from '#lib/server/services/ai-suggestions.ts';
+import { refreshClientContext, saveClientContext } from '#lib/server/services/client-context.ts';
 import { ServiceError } from '#lib/server/services/errors.ts';
 
 const id = z.uuid();
@@ -98,6 +99,12 @@ export const aiActions = {
 		}
 		if (!clientId) return fail(400, { error: 'Pilih klien atau rencana.' });
 		try {
+			// Bring the long memory up to date first (no AI call when the history is unchanged)
+			try {
+				await refreshClientContext(db, clientId, { complete: aiComplete() });
+			} catch (e) {
+				if (!(e instanceof ServiceError)) console.error('context refresh failed', e);
+			}
 			const r = await generateSuggestions(db, clientId, {
 				complete: aiComplete(),
 				force: true,
@@ -111,6 +118,44 @@ export const aiActions = {
 			if (e instanceof ServiceError) return fail(400, { error: e.message });
 			console.error('askAi failed', e);
 			return fail(502, { error: 'AI sedang tidak bisa dihubungi. Coba lagi sebentar lagi.' });
+		}
+	},
+
+	/** "Perbarui dengan AI" on the Ringkasan konteks card: always asks the AI */
+	refreshContext: async (event: RequestEvent) => {
+		requireUser(event.locals);
+		if (!aiEnabled()) return fail(400, { error: 'AI belum diatur di server (SUMOPOD_API_KEY).' });
+		const clientId = id.safeParse((await event.request.formData()).get('clientId'));
+		if (!clientId.success) return fail(400, { error: 'Klien tidak valid.' });
+		try {
+			const r = await refreshClientContext(db, clientId.data, {
+				complete: aiComplete(),
+				force: true
+			});
+			if (r.status === 'empty')
+				return fail(400, {
+					error: 'Belum ada riwayat untuk diringkas. Catat deal atau aktivitas dulu.'
+				});
+			return { done: 'Ringkasan konteks diperbarui.' };
+		} catch (e) {
+			if (e instanceof ServiceError) return fail(400, { error: e.message });
+			console.error('refreshContext failed', e);
+			return fail(502, { error: 'AI sedang tidak bisa dihubungi. Coba lagi sebentar lagi.' });
+		}
+	},
+
+	/** The team's edit of the Ringkasan konteks */
+	saveContext: async (event: RequestEvent) => {
+		const user = requireUser(event.locals);
+		const form = await event.request.formData();
+		const clientId = id.safeParse(form.get('clientId'));
+		if (!clientId.success) return fail(400, { error: 'Klien tidak valid.' });
+		try {
+			await saveClientContext(db, clientId.data, String(form.get('summary') ?? ''), user.id);
+			return { done: 'Ringkasan konteks disimpan.' };
+		} catch (e) {
+			if (e instanceof ServiceError) return fail(400, { error: e.message });
+			throw e;
 		}
 	}
 };

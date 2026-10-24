@@ -8,6 +8,8 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
 	import Avatar from '#lib/components/Avatar.svelte';
+	import { enhance } from '$app/forms';
+	import ClientContextCard from '#lib/components/clients/ClientContextCard.svelte';
 	import Timeline from '#lib/components/clients/Timeline.svelte';
 	import DealFormDrawer from '#lib/components/deals/DealFormDrawer.svelte';
 	import LostModal from '#lib/components/deals/LostModal.svelte';
@@ -23,8 +25,10 @@
 	import Drawer from '#lib/components/layout/Drawer.svelte';
 	import Topbar from '#lib/components/layout/Topbar.svelte';
 	import {
+		ACTIVITY_TYPE_LABELS,
 		DEAL_STAGE_META,
 		DEAL_STAGES,
+		MANUAL_ACTIVITY_TYPES,
 		NEXT_DEAL_STAGE,
 		OPEN_DEAL_STAGES,
 		PROJECT_STAGE_META,
@@ -35,6 +39,7 @@
 	import { dateID, rupiah, rupiahShort } from '#lib/format.ts';
 	import { toLanes, type KanbanMove } from '#lib/kanban.ts';
 	import { stepFields, type StepValue } from '#lib/step-form.ts';
+	import { refreshThenToast } from '#lib/enhance.ts';
 	import { daysInStage } from '#lib/next-action.ts';
 	import { toast } from '#lib/toast.ts';
 	import type { PageProps } from './$types';
@@ -140,6 +145,7 @@
 	let lostOpen = $state(false);
 	let lostDeal = $state<{ title: string; hasProject: boolean } | null>(null);
 	let reopenOpen = $state(false);
+	let noteBusy = $state(false);
 	let reopenDeal = $state<ReopenInfo | null>(null);
 	const isOpenStage = (s: string) => (OPEN_DEAL_STAGES as readonly string[]).includes(s);
 
@@ -615,8 +621,57 @@
 				</section>
 			{/if}
 
+			<div class="rounded-control bg-tint-2 p-4">
+				<ClientContextCard
+					clientId={d.clientId}
+					context={data.context}
+					compact
+					clientHref={resolve('/(app)/clients/[id]', { id: d.clientId })}
+				/>
+			</div>
+
 			<section class="flex flex-col gap-3">
 				<h3 class="text-small font-bold text-ink-2">Riwayat deal</h3>
+				<!-- Meeting results, calls, objections: on this deal's and the client's timeline, read by the AI -->
+				<form
+					method="post"
+					action="?/addDealNote"
+					class="flex flex-col gap-2"
+					use:enhance={refreshThenToast({
+						start: () => (noteBusy = true),
+						end: () => (noteBusy = false)
+					})}
+				>
+					<input type="hidden" name="dealId" value={d.id} />
+					<div class="flex flex-wrap items-center gap-2">
+						<label class="sr-only" for="deal-note-type">Jenis catatan</label>
+						<select
+							id="deal-note-type"
+							name="type"
+							class="min-h-9 rounded-control border border-line px-2.5 text-small font-semibold"
+						>
+							{#each MANUAL_ACTIVITY_TYPES as t (t)}<option value={t}
+									>{ACTIVITY_TYPE_LABELS[t]}</option
+								>{/each}
+						</select>
+						<span class="text-small text-ink-3">Hasil meeting, telepon, keberatan klien…</span>
+					</div>
+					<label class="sr-only" for="deal-note-body">Catatan untuk deal ini</label>
+					<textarea
+						id="deal-note-body"
+						name="body"
+						rows="3"
+						maxlength="5000"
+						placeholder="Tulis catatan untuk deal ini"
+						class="w-full rounded-control border border-line px-3 py-2 text-body"></textarea>
+					<button
+						type="submit"
+						class="bf-btn bf-btn--secondary bf-btn--sm w-fit"
+						disabled={noteBusy}
+					>
+						{noteBusy ? 'Menyimpan…' : 'Simpan catatan'}
+					</button>
+				</form>
 				<Timeline entries={d.timeline} empty="Belum ada aktivitas untuk deal ini." />
 			</section>
 		</div>

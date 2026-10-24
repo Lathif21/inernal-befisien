@@ -48,6 +48,9 @@ Periksa hal-hal ini berurutan dan isi saran dari atas ke bawah sampai paling ban
 
 ## Cara membaca data keuangan
 
+- \`ringkasan_konteks\` adalah ringkasan seluruh riwayat klien (deal lama dan alasan batal, orang
+  kunci, keberatan, pola pembayaran), ditulis AI dan bisa diedit tim. Pakai untuk memahami klien;
+  data lain di bawahnya lebih baru jika bertentangan.
 - \`transaksi_direncanakan\` adalah pembayaran yang SUDAH dijadwalkan di menu Keuangan (tanggal =
   perkiraan tanggal bayar). Jangan sebut pembayaran itu belum dijadwalkan atau belum direncanakan.
 - Per proyek, \`belum_dijadwalkan_rp\` = \`nilai_kontrak_rp\` dikurangi \`sudah_dibayar_rp\` dan

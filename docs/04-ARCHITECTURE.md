@@ -199,6 +199,7 @@ That is 7 schedules at most, within the free plan's 10.
 - The prompt states the rules: suggestions only, Bahasa Indonesia, concrete and dated, no invented facts
 - Nothing is written to deals, plans or steps until a person clicks "Tambahkan ke rencana"
 - Log the model ID with each suggestion
+- **Ringkasan konteks (long memory):** before the suggestions, the same daily run rewrites each client's `client_context` from the previous summary plus the whole history (every deal with its outcome and lost reason, the newest 200 timeline entries, projects, contacts, payments), only when that history changed. The team can edit it on the client page; the AI's next update starts from their text. Suggestions read it as `ringkasan_konteks`.
 
 Development: `npx trigger.dev@latest dev`. Deploy: `npx trigger.dev@latest deploy`, which syncs the declarative cron schedules.
 

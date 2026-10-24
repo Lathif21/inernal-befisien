@@ -6,6 +6,7 @@ import { SERVICE_TYPES } from '#lib/constants.ts';
 import { nextActionState } from '#lib/next-action.ts';
 import { dealSchema, moveSchema, wonProjectSchema, type DealInput } from '#lib/schemas/deal.ts';
 import type { FormMessage } from '#lib/schemas/message.ts';
+import { noteSchema } from '#lib/schemas/activity.ts';
 import { stepFieldsFrom, stepSchema } from '#lib/schemas/step.ts';
 import { db } from '#lib/server/db/index.ts';
 import { requireUser } from '#lib/server/guards.ts';
@@ -20,6 +21,8 @@ import {
 	moveDeal,
 	updateDeal
 } from '#lib/server/services/deals.ts';
+import { addDealNote } from '#lib/server/services/activity.ts';
+import { getClientContext } from '#lib/server/services/client-context.ts';
 import { ServiceError } from '#lib/server/services/errors.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -47,6 +50,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		params.deal ? getDealDetail(db, params.deal) : Promise.resolve(null)
 	]);
 
+	// The client's long memory, shown read-only in the deal drawer
+	const context = detail ? await getClientContext(db, detail.clientId) : null;
+
 	const now = new Date();
 	const isLate = (d: (typeof deals)[number]) =>
 		!!d.next &&
@@ -62,6 +68,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		clients,
 		dealForm,
 		detail,
+		context,
 		params
 	};
 };
@@ -130,6 +137,22 @@ export const actions: Actions = {
 		try {
 			const { projectId } = await moveDeal(db, move.data, wonProject, user.id, next);
 			return { done: projectId ? 'Deal menang. Proyek dibuat.' : 'Deal dipindahkan.', projectId };
+		} catch (e) {
+			return serviceFailure(e);
+		}
+	},
+
+	/** "Tambah catatan" in Riwayat deal: { done } or fail(400, { error }) */
+	addDealNote: async ({ request, locals }) => {
+		const user = requireUser(locals);
+		const data = Object.fromEntries(await request.formData());
+		const dealId = z.uuid().safeParse(data.dealId);
+		if (!dealId.success) return fail(400, { error: 'Deal tidak valid.' });
+		const note = noteSchema.safeParse(data);
+		if (!note.success) return fail(400, { error: note.error.issues[0].message });
+		try {
+			await addDealNote(db, dealId.data, note.data, user.id);
+			return { done: 'Catatan disimpan.' };
 		} catch (e) {
 			return serviceFailure(e);
 		}

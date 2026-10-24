@@ -328,3 +328,22 @@ export const activityRelations = relations(activity, ({ one }) => ({
 	project: one(project, { fields: [activity.projectId], references: [project.id] }),
 	user: one(user, { fields: [activity.userId], references: [user.id] })
 }));
+
+/**
+ * "Ringkasan konteks" (client feedback, after P2-10): what Befisien knows about a client, written
+ * by the AI from the whole history and editable by the team. One row per client; the AI's next
+ * update starts from it, so team edits carry over. Suggestions read it.
+ */
+export const clientContext = pgTable('client_context', {
+	clientId: uuid('client_id')
+		.primaryKey()
+		.references(() => client.id, { onDelete: 'cascade' }),
+	summary: text('summary').notNull(),
+	/** 'ai' or 'team': who wrote the current text */
+	source: text('source').notNull().default('ai'),
+	/** Hash of the history the AI last summarised: unchanged history is not sent again */
+	inputHash: text('input_hash'),
+	model: text('model'),
+	updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+	updatedAt: tstz('updated_at').notNull().defaultNow()
+});

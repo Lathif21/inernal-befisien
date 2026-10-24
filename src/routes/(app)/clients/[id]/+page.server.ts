@@ -35,6 +35,7 @@ import {
 import { transactionActions } from '#lib/server/transaction-actions.ts';
 import { aiActions } from '#lib/server/ai-actions.ts';
 import { aiEnabled } from '#lib/server/ai-config.ts';
+import { getClientContext } from '#lib/server/services/client-context.ts';
 import { listOpenSuggestions } from '#lib/server/services/ai-suggestions.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -97,7 +98,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	if (!client) error(404, 'Klien tidak ditemukan.');
 
 	const active = projects.filter((p) => p.stage !== 'done');
-	const [nextActions, transactions, categories, txnForm, suggestions] = await Promise.all([
+	const [nextActions, transactions, categories, txnForm, suggestions, context] = await Promise.all([
 		getNextActions(db, { projectIds: active.map((p) => p.id) }),
 		finance
 			? listTransactions(
@@ -108,7 +109,8 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 			: Promise.resolve(null),
 		finance ? listCategories(db) : Promise.resolve([]),
 		finance ? superValidate(zod4(transactionSchema)) : Promise.resolve(null),
-		tab === 'ringkasan' ? listOpenSuggestions(db, { clientId: id }) : Promise.resolve([])
+		tab === 'ringkasan' ? listOpenSuggestions(db, { clientId: id }) : Promise.resolve([]),
+		tab === 'ringkasan' ? getClientContext(db, id) : Promise.resolve(null)
 	]);
 
 	return {
@@ -124,6 +126,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		finance:
 			transactions && txnForm ? { transactions, categories, txnForm, period, q, type } : null,
 		suggestions,
+		context,
 		aiEnabled: aiEnabled(),
 		clientForm,
 		contactForm,
