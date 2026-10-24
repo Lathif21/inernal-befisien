@@ -1,6 +1,6 @@
 # SidebarNav
 
-The app's main navigation: a navy column on desktop, stacked on top on phones.
+The app's main navigation: a navy column (240px, or a 72px icon rail chosen with the "Ciutkan menu" / "Perluas menu" toggle at the bottom; tablets default to the rail). On phones it is a left drawer opened from the menu button in the Topbar, with the account and Keluar at the bottom.
 
 **Consumer provides:** the current route and the late + due-today count for the Strategi badge.
 

@@ -79,7 +79,7 @@ Income `#1F5BEA` · Expense `#0B1840` · Planned `#9FD4FF` (hatched) · Profit l
 
 ## Layout
 
-- **Sidebar:** 240px, **navy** background, white text, active item = blue pill. Logo at the top (same B mark + wordmark as the website). Collapses to 72px icons. Bottom tab bar on phones.
+- **Sidebar:** 240px, **navy** background, white text, active item = blue pill. Logo at the top (same B mark + wordmark as the website). Collapses to a 72px icon rail (toggle at the bottom, remembered in the `bf-sidebar` cookie; tablets default to the rail). On phones a menu button in the page header opens the nav as a left drawer, with the account and Keluar at its bottom.
 - **Page header:** white, page title, period filter where relevant, page actions, avatar. No global search or add bar.
 - **Content:** `--tint-2` background, cards on white.
 - **Kanban column:** 288px wide, `--tint` background, 16px radius, header sticky inside the column.

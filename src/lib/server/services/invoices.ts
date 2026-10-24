@@ -293,6 +293,11 @@ export async function listInvoices(db: DbOrTx, f: InvoiceFilters = {}) {
 			paid: sql<number>`(select coalesce(sum("transaction"."amount"), 0) from "transaction" where "transaction"."invoice_id" = "invoice"."id" and "transaction"."status" = 'paid')::bigint`.mapWith(
 				Number
 			),
+			// "Keterangan" column: the first item and how many there are
+			firstItem: sql<
+				string | null
+			>`(select "invoice_item"."description" from "invoice_item" where "invoice_item"."invoice_id" = "invoice"."id" order by "invoice_item"."sort", "invoice_item"."id" limit 1)`,
+			itemCount: sql<number>`(select count(*) from "invoice_item" where "invoice_item"."invoice_id" = "invoice"."id")::int`,
 			clientId: invoice.clientId,
 			clientName: client.name,
 			projectName: project.name

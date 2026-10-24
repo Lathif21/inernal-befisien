@@ -111,6 +111,7 @@
 							<tr>
 								<th scope="col">Nomor</th>
 								<th scope="col">Klien</th>
+								<th scope="col">Keterangan</th>
 								<th scope="col">Tanggal</th>
 								<th scope="col">Jatuh tempo</th>
 								<th scope="col">Status</th>
@@ -126,11 +127,21 @@
 											class="font-mono text-[13px] font-bold text-accent-ink">{inv.number}</a
 										>
 									</td>
+									<td class="font-semibold">{inv.clientName}</td>
+									<!-- Like Keuangan: what is billed, the project underneath -->
 									<td>
-										<span class="font-semibold">{inv.clientName}</span>
+										{#if inv.firstItem}
+											<span class="block font-semibold">
+												{inv.firstItem}
+												{#if inv.itemCount > 1}<span class="text-small font-semibold text-ink-3"
+														>+{inv.itemCount - 1} item lain</span
+													>{/if}
+											</span>
+										{/if}
 										{#if inv.projectName}<span class="block text-small text-ink-3"
 												>{inv.projectName}</span
 											>{/if}
+										{#if !inv.firstItem && !inv.projectName}<span class="text-ink-3">–</span>{/if}
 									</td>
 									<td class="whitespace-nowrap">{dateID(inv.issueDate)}</td>
 									<td class="whitespace-nowrap">{dateID(inv.dueDate)}</td>

@@ -5,6 +5,9 @@
 
 	let { data, children }: LayoutProps = $props();
 
+	// From the cookie on the server; the sidebar toggle overrides it right away
+	let sidebar = $derived(data.sidebar);
+
 	// Loading feedback only when a navigation takes a moment (Neon can be slow to wake up):
 	// a thin bar for every load, and the page dims when it moves to another page
 	let slow = $state(false);
@@ -32,8 +35,8 @@
 {/if}
 
 <!-- Each page renders its own <Topbar> and a `page-body` main area -->
-<div class="min-h-dvh md:flex">
-	<Sidebar strategyCount={data.strategyCount} />
+<div class="min-h-dvh md:flex" data-sidebar={sidebar}>
+	<Sidebar strategyCount={data.strategyCount} mode={sidebar} onmodechange={(m) => (sidebar = m)} />
 	<div
 		class={['flex min-w-0 flex-1 flex-col transition-opacity', slow && otherPage && 'opacity-60']}
 		aria-busy={slow}

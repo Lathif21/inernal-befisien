@@ -166,6 +166,8 @@ describe.skipIf(!isDevDb)('invoices (dev database)', { timeout: 180_000 }, () =>
 
 			const list = await listInvoices(tx, { clientId: c.id });
 			expect([list.total, list.counts]).toEqual([2, { void: 1, draft: 1 }]);
+			const paidRow = list.rows.find((r) => r.id === paid.id)!;
+			expect([paidRow.firstItem, paidRow.itemCount]).toEqual(['Pengembangan dashboard', 2]);
 			const onlyVoid = await listInvoices(tx, { clientId: c.id, status: 'void' });
 			expect(onlyVoid.rows.map((r) => r.number)).toEqual([draft.number]);
 			expect((await listInvoices(tx, { q: draft.number })).rows.map((r) => r.id)).toEqual([

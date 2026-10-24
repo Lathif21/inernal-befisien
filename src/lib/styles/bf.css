@@ -592,6 +592,25 @@
 .bf-nav a:hover {
 	background: var(--color-navy-2);
 }
+/* Collapse / expand button under the items: same row shape, quieter */
+.bf-nav__toggle {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 11px 14px;
+	border: 0;
+	border-radius: var(--radius-pill);
+	background: none;
+	color: var(--color-on-dark-muted);
+	font: inherit;
+	font-size: 13.5px;
+	font-weight: 600;
+	cursor: pointer;
+}
+.bf-nav__toggle:hover {
+	background: var(--color-navy-2);
+	color: var(--color-on-accent);
+}
 .bf-nav a[aria-current='page'] {
 	background: var(--color-accent);
 	color: var(--color-on-accent);

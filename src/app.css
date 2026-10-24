@@ -118,6 +118,19 @@
 	--size-avatar: 28px;
 }
 
+/* Sidebar shown as the 72px icon rail: chosen with the toggle (`collapsed`), or by default
+   on tablets (`auto` below lg). `data-sidebar` sits on the (app) layout root. */
+@custom-variant rail {
+	&:where([data-sidebar='collapsed'] *) {
+		@slot;
+	}
+	@media (width < 64rem) {
+		&:where([data-sidebar='auto'] *) {
+			@slot;
+		}
+	}
+}
+
 @layer base {
 	html {
 		-webkit-text-size-adjust: 100%;
