@@ -3,7 +3,7 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { createDb, type Tx } from '../db/client';
-import { action, activity, project, transaction, user } from '../db/schema/index';
+import { action, activity, deal, project, transaction, user } from '../db/schema/index';
 import { clientSchema } from '../../schemas/client';
 import { dealSchema, moveSchema, wonProjectSchema } from '../../schemas/deal';
 import { projectMoveSchema, projectSchema } from '../../schemas/project';
@@ -12,7 +12,13 @@ import { completeAction } from './actions';
 import { createClient } from './clients';
 import { createDeal, moveDeal } from './deals';
 import { ServiceError } from './errors';
-import { getProjectDetail, listBoardProjects, moveProject, updateProject } from './projects';
+import {
+	deleteProject,
+	getProjectDetail,
+	listBoardProjects,
+	moveProject,
+	updateProject
+} from './projects';
 
 try {
 	process.loadEnvFile();
@@ -237,6 +243,41 @@ describe.skipIf(!isDevDb)('projects service (dev database)', { timeout: 90_000 }
 			expect(projectSchema.safeParse({ ...input, targetEndDate: '2029-12-31' }).success).toBe(
 				false
 			);
+		});
+	});
+
+	it('deletes a project without money records; its deal stays won', async () => {
+		await inRollback(async (tx, userId) => {
+			const {
+				clientId,
+				ids: [kept, dropped]
+			} = await setup(tx, userId, ['Dibayar', 'Salah']);
+			await tx.insert(transaction).values({
+				type: 'income',
+				status: 'paid',
+				amount: 10_000_000,
+				date: '2030-01-05',
+				clientId,
+				projectId: kept
+			});
+			const err = await deleteProject(tx, kept, userId).catch((e) => e);
+			expect(err).toBeInstanceOf(ServiceError);
+			expect(err.message).toContain('1 transaksi');
+
+			const [{ dealId }] = await tx
+				.select({ dealId: project.dealId })
+				.from(project)
+				.where(eq(project.id, dropped));
+			await deleteProject(tx, dropped, userId);
+			expect(await tx.select().from(project).where(eq(project.id, dropped))).toHaveLength(0);
+			expect(await tx.select().from(action).where(eq(action.projectId, dropped))).toHaveLength(0);
+			const [d] = await tx.select({ stage: deal.stage }).from(deal).where(eq(deal.id, dealId!));
+			expect(d.stage).toBe('won');
+			const log = await tx
+				.select({ body: activity.body })
+				.from(activity)
+				.where(and(eq(activity.dealId, dealId!), eq(activity.type, 'system')));
+			expect(log.map((l) => l.body)).toContain('Proyek dihapus: Proyek Salah');
 		});
 	});
 });

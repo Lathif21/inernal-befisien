@@ -6,7 +6,12 @@ import { z } from 'zod';
 import { stepFieldsFrom, stepSchema } from '#lib/schemas/step.ts';
 import { db } from '#lib/server/db/index.ts';
 import { requireUser } from '#lib/server/guards.ts';
-import { addAction, completeAction, updateAction } from '#lib/server/services/actions.ts';
+import {
+	addAction,
+	completeAction,
+	deleteAction,
+	updateAction
+} from '#lib/server/services/actions.ts';
 import { ServiceError } from '#lib/server/services/errors.ts';
 
 const id = z.uuid();
@@ -63,6 +68,18 @@ export const stepActions = {
 		try {
 			await updateAction(db, stepId.data, step.data, user.id);
 			return { done: 'Langkah disimpan.' };
+		} catch (e) {
+			return failure(e);
+		}
+	},
+
+	deleteStep: async (event: RequestEvent) => {
+		const user = requireUser(event.locals);
+		const stepId = id.safeParse((await formOf(event)).id);
+		if (!stepId.success) return fail(400, { error: 'Langkah tidak valid.' });
+		try {
+			await deleteAction(db, stepId.data, user.id);
+			return { done: 'Langkah dihapus.' };
 		} catch (e) {
 			return failure(e);
 		}

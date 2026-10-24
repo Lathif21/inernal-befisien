@@ -7,11 +7,13 @@ import { nextActionState } from '#lib/next-action.ts';
 import type { FormMessage } from '#lib/schemas/message.ts';
 import { projectMoveSchema, projectSchema, type ProjectInput } from '#lib/schemas/project.ts';
 import { db } from '#lib/server/db/index.ts';
+import { runSimpleAction } from '#lib/server/forms.ts';
 import { requireUser } from '#lib/server/guards.ts';
 import { stepActions } from '#lib/server/step-actions.ts';
 import { listOwners } from '#lib/server/services/clients.ts';
 import { ServiceError } from '#lib/server/services/errors.ts';
 import {
+	deleteProject,
 	getProjectDetail,
 	listBoardProjects,
 	moveProject,
@@ -71,6 +73,14 @@ export const actions: Actions = {
 			if (e.field === 'ownerId') return setError(form, e.field, e.message);
 			return message(form, { type: 'error', text: e.message }, { status: 400 });
 		}
+	},
+
+	/** "Hapus proyek" in the project drawer (ConfirmDialog) */
+	deleteProject: async ({ request, locals }) => {
+		const user = requireUser(locals);
+		const id = z.uuid().safeParse((await request.formData()).get('id'));
+		if (!id.success) return fail(400, { error: 'Proyek tidak valid.' });
+		return runSimpleAction(() => deleteProject(db, id.data, user.id), 'Proyek dihapus.');
 	},
 
 	/** Board move (drag or "Pindah ke…") */

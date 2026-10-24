@@ -200,6 +200,7 @@
 			rows={data.list.rows}
 			showClient
 			onedit={(row) => drawer?.openEdit(row)}
+			ondelete={(row) => drawer?.openDelete(row)}
 			empty={data.list.all === 0
 				? 'Belum ada transaksi. Catat dengan tombol "+ Transaksi".'
 				: 'Tidak ada transaksi yang cocok dengan filter.'}

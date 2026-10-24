@@ -6,11 +6,13 @@
 	import Check from '@lucide/svelte/icons/check';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import AiPanel from '#lib/components/ai/AiPanel.svelte';
 	import Pager from '#lib/components/Pager.svelte';
 	import PeriodFilter from '#lib/components/PeriodFilter.svelte';
 	import Topbar from '#lib/components/layout/Topbar.svelte';
+	import AddStepModal from '#lib/components/steps/AddStepModal.svelte';
 	import NextStepPrompt from '#lib/components/steps/NextStepPrompt.svelte';
 	import PlanCard from '#lib/components/strategy/PlanCard.svelte';
 	import PlanFormDrawer from '#lib/components/strategy/PlanFormDrawer.svelte';
@@ -24,7 +26,7 @@
 	import { dateID, dayKeyWib } from '#lib/format.ts';
 	import { nextActionState, nextActionWhen } from '#lib/next-action.ts';
 	import type { StrategyStep } from '#lib/server/services/plans.ts';
-	import { stepFields, type StepValue } from '#lib/step-form.ts';
+	import { stepFields, stepValueOf, type StepValue } from '#lib/step-form.ts';
 	import { toast } from '#lib/toast.ts';
 	import type { PageProps } from './$types';
 
@@ -166,6 +168,30 @@
 		post('moveStep', { id, direction }).then(settle);
 	const planStatus = (id: string, status: 'achieved' | 'dropped') =>
 		post('planStatus', { id, status }).then(settle);
+
+	// Step menu: "Ubah langkah" (modal) and "Hapus langkah" (confirm)
+	let editStepOpen = $state(false);
+	let editStep = $state<StrategyStep | null>(null);
+	function openEditStep(s: StrategyStep) {
+		editStep = s;
+		editStepOpen = true;
+	}
+	const saveEditStep = (value: StepValue) =>
+		post('updateStep', { id: editStep!.id, ...stepFields(value) }).then(settle);
+
+	let deleteStepOpen = $state(false);
+	let deleteStep = $state<StrategyStep | null>(null);
+	function openDeleteStep(s: StrategyStep) {
+		// Rule 4: an active card keeps one open step (the server refuses too)
+		if (!s.doneAt && s.cardOpenSteps <= 1 && !TERMINAL_STAGES.includes(cardStage(s)!)) {
+			toast.error(
+				`Ini satu-satunya langkah terbuka di ${s.cardTitle}. Ubah langkahnya, atau tambahkan langkah lain dulu.`
+			);
+			return;
+		}
+		deleteStep = s;
+		deleteStepOpen = true;
+	}
 
 	// ---------- Saran AI (P2-02) ----------
 	const cardsFor = (clientId: string) => [
@@ -332,6 +358,8 @@
 						oncomplete={complete}
 						onaddstep={addPlanStep}
 						onmove={moveStep}
+						oneditstep={openEditStep}
+						ondeletestep={openDeleteStep}
 						onedit={() => planDrawer?.openEdit(plan)}
 						onstatus={(status) => planStatus(plan.id, status)}
 						onask={data.aiEnabled ? () => askAi(plan.id) : undefined}
@@ -409,6 +437,28 @@
 </main>
 
 <PlanFormDrawer bind:this={planDrawer} form={data.planForm} cards={data.cards} />
+
+<AddStepModal
+	bind:open={editStepOpen}
+	cardTitle={editStep ? `${editStep.clientName} · ${editStep.cardTitle}` : ''}
+	assignees={data.owners}
+	initial={editStep ? stepValueOf(editStep) : null}
+	onsubmit={saveEditStep}
+/>
+
+<ConfirmDialog
+	bind:open={deleteStepOpen}
+	title="Hapus langkah?"
+	action="?/deleteStep"
+	fields={{ id: deleteStep?.id ?? '' }}
+	confirmLabel="Hapus langkah"
+	tone="danger"
+>
+	{#if deleteStep}
+		<b class="text-ink">{deleteStep.title}</b> dihapus dari rencana "{deleteStep.planGoal}". Langkah
+		yang terhapus tidak bisa dikembalikan.
+	{/if}
+</ConfirmDialog>
 
 <NextStepPrompt
 	bind:open={promptOpen}

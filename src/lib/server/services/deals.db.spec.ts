@@ -17,7 +17,7 @@ import { clientSchema } from '../../schemas/client';
 import { dealSchema, moveSchema, wonProjectSchema } from '../../schemas/deal';
 import { stepSchema } from '../../schemas/step';
 import { createClient } from './clients';
-import { createDeal, moveDeal } from './deals';
+import { createDeal, deleteDeal, moveDeal } from './deals';
 import { ServiceError } from './errors';
 
 try {
@@ -269,6 +269,43 @@ describe.skipIf(!isDevDb)('deals service (dev database)', { timeout: 60_000 }, (
 			await moveDeal(tx, move({ id: ids[0], to: 'negotiation' }), null, userId);
 			const [d] = await tx.select().from(deal).where(eq(deal.id, ids[0]));
 			expect(d).toMatchObject({ stage: 'negotiation', wonAt: null, probability: 80 });
+		});
+	});
+
+	it('deletes a deal with its steps and plans, but not once it has a project', async () => {
+		await inRollback(async (tx, userId) => {
+			const { clientId, ids } = await setup(tx, userId, ['Salah', 'Proyek'], 'negotiation');
+			const [plan] = await tx
+				.insert(strategyPlan)
+				.values({ clientId, dealId: ids[0], goal: 'Salah input', ownerId: userId })
+				.returning();
+			await deleteDeal(tx, ids[0], userId);
+			expect(await tx.select().from(deal).where(eq(deal.id, ids[0]))).toHaveLength(0);
+			expect(await tx.select().from(action).where(eq(action.dealId, ids[0]))).toHaveLength(0);
+			expect(await tx.select().from(strategyPlan).where(eq(strategyPlan.id, plan.id))).toHaveLength(
+				0
+			);
+			const log = await tx
+				.select({ body: activity.body, dealId: activity.dealId })
+				.from(activity)
+				.where(and(eq(activity.clientId, clientId), eq(activity.body, 'Deal dihapus: Deal Salah')));
+			expect(log).toEqual([{ body: 'Deal dihapus: Deal Salah', dealId: null }]);
+
+			await moveDeal(
+				tx,
+				move({ id: ids[1], to: 'won', createProject: 'yes' }),
+				wonProjectSchema.parse({
+					projectName: 'Proyek dari deal',
+					contractValue: 50_000_000,
+					startDate: '2030-01-01',
+					firstStepTitle: 'Kick-off',
+					firstStepDue: '2030-01-04T10:00'
+				}),
+				userId
+			);
+			const err = await deleteDeal(tx, ids[1], userId).catch((e) => e);
+			expect(err).toBeInstanceOf(ServiceError);
+			expect(err.message).toContain('Proyek dari deal');
 		});
 	});
 });

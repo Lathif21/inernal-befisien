@@ -782,6 +782,7 @@
 			<TransactionTable
 				rows={f.transactions.rows}
 				onedit={archived ? undefined : (row) => txnDrawer?.openEdit(row)}
+				ondelete={archived ? undefined : (row) => txnDrawer?.openDelete(row)}
 				empty={f.transactions.all === 0
 					? 'Belum ada transaksi untuk klien ini.'
 					: 'Tidak ada transaksi yang cocok dengan filter.'}

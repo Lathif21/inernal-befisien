@@ -7,7 +7,9 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
+	import Trash from '@lucide/svelte/icons/trash-2';
 	import Avatar from '#lib/components/Avatar.svelte';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import { enhance } from '$app/forms';
 	import ClientContextCard from '#lib/components/clients/ClientContextCard.svelte';
 	import Timeline from '#lib/components/clients/Timeline.svelte';
@@ -312,6 +314,15 @@
 	let detailOpen = $derived(!!data.detail);
 	const openDeal = (id: string) => go({ deal: id });
 	const closeDeal = () => go({ deal: undefined });
+
+	// A deal that became a project is deleted only after its project (the server refuses too)
+	let deleteOpen = $state(false);
+	function askDelete() {
+		const p = data.detail?.project;
+		if (p)
+			toast.error(`Deal ini sudah punya proyek "${p.name}". Hapus proyeknya dulu di board Proyek.`);
+		else deleteOpen = true;
+	}
 
 	function editDetail() {
 		const d = data.detail;
@@ -677,6 +688,10 @@
 		</div>
 	{/if}
 	{#snippet footer()}
+		<button type="button" class="bf-btn bf-btn--ghost mr-auto text-danger!" onclick={askDelete}>
+			<Trash size={16} strokeWidth={1.75} />
+			Hapus
+		</button>
 		<button type="button" class="bf-btn bf-btn--secondary" onclick={closeDeal}>Tutup</button>
 		<button type="button" class="bf-btn bf-btn--secondary" onclick={editDetail}>
 			<Pencil size={16} strokeWidth={1.75} />
@@ -684,3 +699,18 @@
 		</button>
 	{/snippet}
 </Drawer>
+
+<ConfirmDialog
+	bind:open={deleteOpen}
+	title="Hapus deal?"
+	action="?/deleteDeal"
+	fields={{ id: data.detail?.id ?? '' }}
+	confirmLabel="Hapus deal"
+	tone="danger"
+	onsuccess={closeDeal}
+>
+	{#if data.detail}
+		<b class="text-ink">{data.detail.title}</b> dihapus beserta langkah dan rencananya. Riwayatnya tetap
+		ada di halaman klien.
+	{/if}
+</ConfirmDialog>

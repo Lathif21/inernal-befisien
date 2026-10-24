@@ -6,7 +6,14 @@ import { activity, deal, user } from '../db/schema/index';
 import { clientSchema } from '../../schemas/client';
 import { dealSchema, moveSchema } from '../../schemas/deal';
 import { stepSchema } from '../../schemas/step';
-import { addAction, completeAction, getNextActions, listCardSteps, updateAction } from './actions';
+import {
+	addAction,
+	completeAction,
+	deleteAction,
+	getNextActions,
+	listCardSteps,
+	updateAction
+} from './actions';
 import { createClient } from './clients';
 import { createDeal, moveDeal } from './deals';
 import { ServiceError } from './errors';
@@ -151,6 +158,39 @@ describe.skipIf(!isDevDb)('steps service (dev database)', { timeout: 60_000 }, (
 			await moveDeal(tx, moveSchema.parse({ id: dealId, to: 'won' }), null, userId);
 			const { open } = await completeAction(tx, firstStepId, {}, userId);
 			expect(open).toBe(0);
+		});
+	});
+
+	it('deletes a step, but keeps the only open step of an active card', async () => {
+		await inRollback(async (tx, userId) => {
+			const { dealId, firstStepId } = await dealWithOneStep(tx, userId);
+			const err = await deleteAction(tx, firstStepId, userId).catch((e) => e);
+			expect(err).toBeInstanceOf(ServiceError);
+
+			const second = await addAction(
+				tx,
+				{ dealId },
+				step({ title: 'Salah input', dueDate: '2030-01-11', dueTime: '09:00' }),
+				userId
+			);
+			await deleteAction(tx, second.id, userId);
+			// done steps go freely, even the card's last one
+			await completeAction(
+				tx,
+				firstStepId,
+				{ next: step({ title: 'Langkah kedua', dueDate: '2030-01-12', dueTime: '14:00' }) },
+				userId
+			);
+			await deleteAction(tx, firstStepId, userId);
+
+			const steps = await listCardSteps(tx, { dealId });
+			expect(steps.open.map((s) => s.title)).toEqual(['Langkah kedua']);
+			expect(steps.done).toHaveLength(0);
+			const logged = await tx
+				.select({ body: activity.body })
+				.from(activity)
+				.where(and(eq(activity.dealId, dealId), eq(activity.type, 'system')));
+			expect(logged.map((l) => l.body)).toContain('Langkah dihapus: Salah input');
 		});
 	});
 });

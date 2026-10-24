@@ -101,6 +101,12 @@
 		open = true;
 	}
 
+	/** The table's delete button: the same confirm as "Hapus" in the drawer, without the drawer */
+	export function openDelete(t: EditableTransaction) {
+		editing = t;
+		deleteOpen = true;
+	}
+
 	// A client page has a fixed client, so overhead (no client, P2-08) is not offered there
 	const typeCategories = $derived(
 		categories.filter((c) => c.type === $form.type && !(lockClient && c.isOverhead))

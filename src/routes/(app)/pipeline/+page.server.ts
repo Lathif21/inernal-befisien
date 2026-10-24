@@ -9,12 +9,14 @@ import type { FormMessage } from '#lib/schemas/message.ts';
 import { noteSchema } from '#lib/schemas/activity.ts';
 import { stepFieldsFrom, stepSchema } from '#lib/schemas/step.ts';
 import { db } from '#lib/server/db/index.ts';
+import { runSimpleAction } from '#lib/server/forms.ts';
 import { requireUser } from '#lib/server/guards.ts';
 import { stepActions } from '#lib/server/step-actions.ts';
 import { listOwners } from '#lib/server/services/clients.ts';
 import {
 	createDeal,
 	createProjectForWonDeal,
+	deleteDeal,
 	getDealDetail,
 	listBoardDeals,
 	listDealClients,
@@ -140,6 +142,14 @@ export const actions: Actions = {
 		} catch (e) {
 			return serviceFailure(e);
 		}
+	},
+
+	/** "Hapus deal" in the deal drawer (ConfirmDialog) */
+	deleteDeal: async ({ request, locals }) => {
+		const user = requireUser(locals);
+		const id = z.uuid().safeParse((await request.formData()).get('id'));
+		if (!id.success) return fail(400, { error: 'Deal tidak valid.' });
+		return runSimpleAction(() => deleteDeal(db, id.data, user.id), 'Deal dihapus.');
 	},
 
 	/** "Tambah catatan" in Riwayat deal: { done } or fail(400, { error }) */

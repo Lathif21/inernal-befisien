@@ -22,14 +22,28 @@
 		/** Resolves to field errors, or nothing when saved */
 		onaddstep: (planId: string, value: StepValue) => Promise<Record<string, string> | void>;
 		onmove: (stepId: string, direction: 'up' | 'down') => void;
+		/** Step menu: "Ubah langkah" / "Hapus langkah" */
+		oneditstep: (step: StrategyStep) => void;
+		ondeletestep: (step: StrategyStep) => void;
 		onedit: () => void;
 		onstatus: (status: 'achieved' | 'dropped') => void;
 		/** "Minta saran AI" for this plan; omitted = button disabled (AI not configured) */
 		onask?: () => Promise<void>;
 	};
 
-	let { plan, now, assignees, oncomplete, onaddstep, onmove, onedit, onstatus, onask }: Props =
-		$props();
+	let {
+		plan,
+		now,
+		assignees,
+		oncomplete,
+		onaddstep,
+		onmove,
+		oneditstep,
+		ondeletestep,
+		onedit,
+		onstatus,
+		onask
+	}: Props = $props();
 
 	let asking = $state(false);
 	async function ask() {
@@ -186,6 +200,8 @@
 					onmove={(d) => onmove(s.id, d)}
 					canUp={index > 0}
 					canDown={index < plan.totalSteps - 1}
+					onedit={() => oneditstep(s)}
+					ondelete={() => ondeletestep(s)}
 				/>
 			{/each}
 		</ol>

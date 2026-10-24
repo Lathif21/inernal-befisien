@@ -7,11 +7,13 @@
 		open: boolean;
 		cardTitle: string;
 		assignees: { id: string; name: string }[];
+		/** Editing an existing step ("Ubah langkah"); omitted = a new step */
+		initial?: StepValue | null;
 		/** Save; resolves to field errors, or nothing when saved */
 		onsubmit: (value: StepValue) => Promise<Record<string, string> | void>;
 	};
 
-	let { open = $bindable(), cardTitle, assignees, onsubmit }: Props = $props();
+	let { open = $bindable(), cardTitle, assignees, initial = null, onsubmit }: Props = $props();
 
 	let value = $state<StepValue>(newStepValue());
 	let errors = $state<Record<string, string>>({});
@@ -19,7 +21,7 @@
 
 	$effect(() => {
 		if (open) {
-			value = newStepValue();
+			value = initial ? { ...initial } : newStepValue();
 			errors = {};
 			busy = false;
 		}
@@ -38,8 +40,12 @@
 	}
 </script>
 
-<!-- From the dashed "+ Tambah langkah berikutnya" box on a card -->
-<Modal bind:open title="Tambah langkah berikutnya" description={cardTitle}>
+<!-- From the dashed "+ Tambah langkah berikutnya" box on a card, or "Ubah langkah" on Strategi -->
+<Modal
+	bind:open
+	title={initial ? 'Ubah langkah' : 'Tambah langkah berikutnya'}
+	description={cardTitle}
+>
 	<form id="add-step-form" novalidate onsubmit={save}>
 		<StepFields bind:value {assignees} {errors} idPrefix="add-step" autofocus />
 	</form>

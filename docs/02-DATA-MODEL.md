@@ -275,6 +275,7 @@ expected_cash= total − pph23_amount                     (what actually reaches
    4c. **Accept an AI suggestion** → create an action (or a plan), set `from_suggestion_id`, mark the suggestion `accepted`, and log an `activity` (`ai_accepted`).
 5. **Transaction created, edited or deleted** → log an `activity` (`transaction`). Totals are always computed by queries, never stored on the client.
 6. **Archive client** → only allowed when there are no open deals or projects (or confirm to archive them all).
+   6c. **Delete a step / deal / project** (entered by mistake, after a confirmation) → a step: not the only open step of an active card. A deal: not once a project was made from it (delete the project first); its plans and open AI suggestions go with it. A project: not while it has transactions or invoices; its plans and open AI suggestions go with it, and its deal stays in Deal ✓. Each leaves one line on the client timeline.
    6b. **Delete client** → only an archived client, after a confirmation, and never while it has transactions or invoices. Deletes its contacts, deals, projects, plans, steps, activities and AI suggestions.
 
 ## Ordering inside kanban columns

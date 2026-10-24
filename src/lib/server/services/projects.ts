@@ -5,7 +5,17 @@ import { and, asc, desc, eq, gte, ilike, isNull, ne, or, sql, type SQL } from 'd
 import { PROJECT_STAGE_META, type ServiceType } from '../../constants';
 import type { ProjectInput, ProjectMoveInput } from '../../schemas/project';
 import type { DbOrTx } from '../db/client';
-import { activity, client, deal, project, transaction, user } from '../db/schema/index';
+import {
+	activity,
+	aiSuggestion,
+	client,
+	deal,
+	invoice,
+	project,
+	strategyPlan,
+	transaction,
+	user
+} from '../db/schema/index';
 import { getNextActions, listCardSteps } from './actions';
 import { logActivity } from './activity';
 import { positionBetween } from './board-position';
@@ -137,6 +147,53 @@ export async function updateProject(db: DbOrTx, input: ProjectInput, userId: str
 			userId
 		});
 		return row;
+	});
+}
+
+/**
+ * Delete a project entered by mistake, with its steps, plans and open AI suggestions. Refused once
+ * money is attached (transactions or invoices). A deal it came from stays in Deal ✓ and can get a
+ * new project ("Buat proyek").
+ */
+export async function deleteProject(db: DbOrTx, id: string, userId: string) {
+	return db.transaction(async (tx) => {
+		const [current] = await tx.select().from(project).where(eq(project.id, id)).for('update');
+		if (!current) throw new ServiceError('Proyek tidak ditemukan.');
+		const [{ txns }] = await tx
+			.select({ txns: sql<number>`count(*)::int` })
+			.from(transaction)
+			.where(eq(transaction.projectId, id));
+		const [{ invoices }] = await tx
+			.select({ invoices: sql<number>`count(*)::int` })
+			.from(invoice)
+			.where(eq(invoice.projectId, id));
+		if (txns || invoices) {
+			const parts = [txns && `${txns} transaksi`, invoices && `${invoices} invoice`].filter(
+				Boolean
+			);
+			// Transactions can be deleted in Keuangan; invoices are only ever voided
+			const hint = invoices
+				? 'Data keuangan tetap disimpan.'
+				: 'Hapus transaksinya dulu di Keuangan.';
+			throw new ServiceError(
+				`Proyek "${current.name}" sudah punya ${parts.join(' dan ')}, jadi tidak bisa dihapus. ${hint}`
+			);
+		}
+
+		// Plans point at the project without cascade; the project's steps cascade with it
+		await tx.delete(strategyPlan).where(eq(strategyPlan.projectId, id));
+		await tx
+			.delete(aiSuggestion)
+			.where(and(eq(aiSuggestion.projectId, id), eq(aiSuggestion.status, 'new')));
+		await tx.delete(project).where(eq(project.id, id));
+		await logActivity(tx, {
+			clientId: current.clientId,
+			dealId: current.dealId,
+			type: 'system',
+			body: `Proyek dihapus: ${current.name}`,
+			userId
+		});
+		return current;
 	});
 }
 

@@ -14,6 +14,7 @@ import type { DbOrTx, Tx } from '../db/client';
 import {
 	action,
 	activity,
+	aiSuggestion,
 	client,
 	deal,
 	invoice,
@@ -201,6 +202,40 @@ export async function updateDeal(db: DbOrTx, id: string, input: DealInput, userI
 			userId
 		});
 		return row;
+	});
+}
+
+/**
+ * Delete a deal entered by mistake, with its steps, plans and open AI suggestions. Refused once a
+ * project was made from it: delete that project first (Proyek). The client's timeline keeps the
+ * deal's entries (they lose the link) plus one line saying it was deleted.
+ */
+export async function deleteDeal(db: DbOrTx, id: string, userId: string) {
+	return db.transaction(async (tx) => {
+		const [current] = await tx.select().from(deal).where(eq(deal.id, id)).for('update');
+		if (!current) throw new ServiceError('Deal tidak ditemukan.');
+		const [linked] = await tx
+			.select({ name: project.name })
+			.from(project)
+			.where(eq(project.dealId, id));
+		if (linked)
+			throw new ServiceError(
+				`Deal ini sudah punya proyek "${linked.name}". Hapus proyeknya dulu di board Proyek.`
+			);
+
+		// Plans point at the deal without cascade; the deal's steps cascade with it
+		await tx.delete(strategyPlan).where(eq(strategyPlan.dealId, id));
+		await tx
+			.delete(aiSuggestion)
+			.where(and(eq(aiSuggestion.dealId, id), eq(aiSuggestion.status, 'new')));
+		await tx.delete(deal).where(eq(deal.id, id));
+		await logActivity(tx, {
+			clientId: current.clientId,
+			type: 'system',
+			body: `Deal dihapus: ${current.title}`,
+			userId
+		});
+		return current;
 	});
 }
 

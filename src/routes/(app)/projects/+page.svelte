@@ -7,7 +7,9 @@
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Search from '@lucide/svelte/icons/search';
+	import Trash from '@lucide/svelte/icons/trash-2';
 	import Avatar from '#lib/components/Avatar.svelte';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import Timeline from '#lib/components/clients/Timeline.svelte';
 	import KanbanBoard, { type KanbanColumn } from '#lib/components/kanban/KanbanBoard.svelte';
 	import KanbanCard from '#lib/components/kanban/KanbanCard.svelte';
@@ -181,6 +183,7 @@
 	let detailOpen = $derived(!!data.detail);
 	const openProject = (id: string) => go({ project: id });
 	const closeProject = () => go({ project: undefined });
+	let deleteOpen = $state(false);
 
 	function editDetail() {
 		const d = data.detail;
@@ -454,6 +457,14 @@
 		</div>
 	{/if}
 	{#snippet footer()}
+		<button
+			type="button"
+			class="bf-btn bf-btn--ghost mr-auto text-danger!"
+			onclick={() => (deleteOpen = true)}
+		>
+			<Trash size={16} strokeWidth={1.75} />
+			Hapus
+		</button>
 		<button type="button" class="bf-btn bf-btn--secondary" onclick={closeProject}>Tutup</button>
 		<button type="button" class="bf-btn bf-btn--secondary" onclick={editDetail}>
 			<Pencil size={16} strokeWidth={1.75} />
@@ -461,3 +472,20 @@
 		</button>
 	{/snippet}
 </Drawer>
+
+<ConfirmDialog
+	bind:open={deleteOpen}
+	title="Hapus proyek?"
+	action="?/deleteProject"
+	fields={{ id: data.detail?.id ?? '' }}
+	confirmLabel="Hapus proyek"
+	tone="danger"
+	onsuccess={closeProject}
+>
+	{#if data.detail}
+		<b class="text-ink">{data.detail.name}</b> dihapus beserta langkah dan rencananya. Tidak bisa
+		jika proyek ini sudah punya transaksi atau invoice.
+		{#if data.detail.dealTitle}Deal "{data.detail.dealTitle}" tetap di Deal ✓ dan bisa dibuatkan
+			proyek lagi.{/if}
+	{/if}
+</ConfirmDialog>

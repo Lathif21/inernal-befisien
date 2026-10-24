@@ -198,6 +198,39 @@ export async function updateAction(db: DbOrTx, id: string, input: StepInput, use
 	});
 }
 
+/**
+ * Delete a step entered by mistake (open or done). The only open step of an active card stays
+ * (rule 4): edit it, or add another step first.
+ */
+export async function deleteAction(db: DbOrTx, id: string, userId: string) {
+	return db.transaction(async (tx) => {
+		const [current] = await tx.select().from(action).where(eq(action.id, id)).for('update');
+		if (!current) throw new ServiceError('Langkah tidak ditemukan.');
+		const ref = refOf(current);
+		const ctx = await cardContext(tx, ref);
+		if (!current.doneAt && !ctx.terminal) {
+			const [{ open }] = await tx
+				.select({ open: count() })
+				.from(action)
+				.where(and(cardWhere(ref), isNull(action.doneAt)));
+			if (open <= 1)
+				throw new ServiceError(
+					'Ini satu-satunya langkah terbuka di kartu ini. Ubah langkahnya, atau tambahkan langkah lain dulu.'
+				);
+		}
+		await tx.delete(action).where(eq(action.id, id));
+		await logActivity(tx, {
+			clientId: ctx.clientId,
+			dealId: ref.dealId ?? null,
+			projectId: ref.projectId ?? null,
+			type: 'system',
+			body: `Langkah dihapus: ${current.title}`,
+			userId
+		});
+		return current;
+	});
+}
+
 function refOf(row: { dealId: string | null; projectId: string | null }): CardRef {
 	if (row.dealId) return { dealId: row.dealId };
 	return { projectId: row.projectId! };

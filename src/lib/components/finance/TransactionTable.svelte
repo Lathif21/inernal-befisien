@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import Pencil from '@lucide/svelte/icons/pencil';
+	import Trash from '@lucide/svelte/icons/trash-2';
 	import Money from '#lib/components/money/Money.svelte';
 	import { TXN_STATUS_LABELS } from '#lib/constants.ts';
 	import { dateID } from '#lib/format.ts';
@@ -11,6 +13,8 @@
 		showClient?: boolean;
 		/** Opens the edit drawer; omitted = read only */
 		onedit?: (row: TransactionRow) => void;
+		/** Asks to delete the row; shown next to the edit button */
+		ondelete?: (row: TransactionRow) => void;
 		/** Shown when no row matches */
 		empty?: string;
 	};
@@ -19,8 +23,11 @@
 		rows,
 		showClient = false,
 		onedit,
+		ondelete,
 		empty = 'Tidak ada transaksi yang cocok dengan filter.'
 	}: Props = $props();
+
+	const label = (t: TransactionRow) => t.description ?? '(tanpa keterangan)';
 </script>
 
 <!-- DataTable (docs/design-system/components/DataTable): Tanggal · Keterangan · Kategori · Status · Jumlah -->
@@ -39,6 +46,7 @@
 					{#if showClient}<th scope="col">Klien</th>{/if}
 					<th scope="col">Status</th>
 					<th scope="col" class="num">Jumlah</th>
+					{#if onedit || ondelete}<th scope="col"><span class="sr-only">Aksi</span></th>{/if}
 				</tr>
 			</thead>
 			<tbody>
@@ -79,6 +87,30 @@
 							>
 						</td>
 						<td class="num"><Money amount={t.amount} type={t.type} /></td>
+						{#if onedit || ondelete}
+							<td class="w-0 whitespace-nowrap">
+								<span class="flex justify-end gap-1">
+									{#if onedit}
+										<button
+											type="button"
+											class="bf-hit inline-flex size-8 items-center justify-center rounded-control text-ink-2 hover:bg-tint-2 hover:text-ink"
+											aria-label="Edit transaksi: {label(t)}"
+											title="Edit transaksi"
+											onclick={() => onedit(t)}><Pencil size={15} strokeWidth={1.9} /></button
+										>
+									{/if}
+									{#if ondelete}
+										<button
+											type="button"
+											class="bf-hit inline-flex size-8 items-center justify-center rounded-control text-ink-2 hover:bg-danger-bg hover:text-danger"
+											aria-label="Hapus transaksi: {label(t)}"
+											title="Hapus transaksi"
+											onclick={() => ondelete(t)}><Trash size={15} strokeWidth={1.9} /></button
+										>
+									{/if}
+								</span>
+							</td>
+						{/if}
 					</tr>
 				{/each}
 			</tbody>
