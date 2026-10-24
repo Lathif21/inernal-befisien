@@ -25,6 +25,8 @@ const DATE_PATTERNS = {
 	datetime: 'd MMM HH:mm',
 	/** Kamis, 22 Okt 2026 (greetings) */
 	long: 'EEEE, d MMM yyyy',
+	/** 22 Oktober 2026 (invoice PDF) */
+	full: 'd MMMM yyyy',
 	/** 10:00 */
 	time: 'HH:mm'
 } as const;
@@ -92,6 +94,13 @@ export function phoneDisplay(stored: string): string {
 	const local = stored.slice(2);
 	const groups = [local.slice(0, 3), local.slice(3, 7), local.slice(7)].filter(Boolean);
 	return `+62 ${groups.join('-')}`;
+}
+
+/** Stored digits → `01.234.567.8-901.000` (15-digit NPWP); 16-digit NPWP (NIK form) stays plain */
+export function npwpDisplay(stored: string): string {
+	const d = stored.replace(/\D/g, '');
+	if (d.length !== 15) return d;
+	return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}.${d.slice(8, 9)}-${d.slice(9, 12)}.${d.slice(12)}`;
 }
 
 const MINUS = '−';

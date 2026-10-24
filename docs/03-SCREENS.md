@@ -142,6 +142,7 @@ List with status chips. Editor with items, PPN / PPh 23 toggles, live totals, "U
 - **Telegram:** "Hubungkan Telegram" shows a one-time code and a link `t.me/<bot>?start=<code>`. The bot stores the chat ID.
 - **Kategori:** income and expense categories
 - **Import Data:** CSV upload → preview → import
+- **Profil perusahaan (P2-06, admin):** company name, address, city, phone, email, NPWP, bank account and signer printed on invoice PDFs. Example values until saved.
 - **AI (P2):** on/off, time of the daily run
 
 ---

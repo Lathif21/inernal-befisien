@@ -4,6 +4,7 @@ import {
 	dateToWibLocal,
 	dayKeyWib,
 	nowWib,
+	npwpDisplay,
 	phoneDisplay,
 	phoneNormalize,
 	rupiah,
@@ -16,6 +17,13 @@ describe('phoneDisplay', () => {
 		expect(phoneDisplay('6281234567890')).toBe('+62 812-3456-7890');
 		expect(phoneDisplay('62215551234')).toBe('+62 215-5512-34');
 		expect(phoneDisplay('6591234567')).toBe('+6591234567');
+	});
+});
+
+describe('npwpDisplay', () => {
+	it('formats 15 digits and leaves 16 digits plain', () => {
+		expect(npwpDisplay('012345678901000')).toBe('01.234.567.8-901.000');
+		expect(npwpDisplay('0123456789012345')).toBe('0123456789012345');
 	});
 });
 

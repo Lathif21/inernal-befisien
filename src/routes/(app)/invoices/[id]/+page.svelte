@@ -3,6 +3,7 @@
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Ban from '@lucide/svelte/icons/ban';
 	import Download from '@lucide/svelte/icons/download';
+	import Eye from '@lucide/svelte/icons/eye';
 	import Send from '@lucide/svelte/icons/send';
 	import Wallet from '@lucide/svelte/icons/wallet';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
@@ -54,16 +55,26 @@
 			{#if inv.sentAt}· dikirim {dateID(inv.sentAt)}{/if}
 		</span>
 		<div class="flex flex-wrap gap-2">
-			<!-- P2-06 / P2-07 -->
-			<button
-				type="button"
+			<a
+				href={resolve('/(app)/invoices/[id]/pdf?view', { id: inv.id })}
+				target="_blank"
+				rel="noopener"
+				class="bf-btn bf-btn--ghost bf-btn--sm"
+				title="PDF memakai data yang sudah disimpan"
+			>
+				<Eye size={15} strokeWidth={1.9} />
+				Lihat PDF
+			</a>
+			<a
+				href={resolve('/(app)/invoices/[id]/pdf', { id: inv.id })}
+				download
 				class="bf-btn bf-btn--secondary bf-btn--sm"
-				disabled
-				title="PDF invoice hadir di P2-06"
+				title="PDF memakai data yang sudah disimpan"
 			>
 				<Download size={15} strokeWidth={1.9} />
 				Unduh PDF
-			</button>
+			</a>
+			<!-- P2-07 -->
 			<button
 				type="button"
 				class="bf-btn bf-btn--secondary bf-btn--sm"
@@ -85,6 +96,15 @@
 			{/if}
 		</div>
 	</section>
+
+	{#if data.companyIsExample}
+		<p class="rounded-control bg-warning-bg px-4 py-3 text-small font-semibold text-ink">
+			Data perusahaan di PDF (NPWP, rekening bank, penanda tangan) masih contoh.
+			<a href={resolve('settings/company')} class="font-bold text-accent-ink"
+				>Lengkapi di Pengaturan → Profil perusahaan</a
+			>
+		</p>
+	{/if}
 
 	{#if inv.status !== 'draft'}
 		<p class="rounded-control bg-tint px-4 py-3 text-small font-semibold text-ink-2">

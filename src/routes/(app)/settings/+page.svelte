@@ -2,6 +2,7 @@
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import Building from '@lucide/svelte/icons/building-2';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import FileUp from '@lucide/svelte/icons/file-up';
@@ -30,6 +31,12 @@
 			icon: Tags,
 			title: 'Kategori',
 			text: 'Kategori pemasukan dan pengeluaran.'
+		},
+		{
+			href: resolve('settings/company'),
+			icon: Building,
+			title: 'Profil perusahaan',
+			text: 'Nama, alamat, NPWP, rekening bank, dan penanda tangan di PDF invoice.'
 		},
 		{
 			href: resolve('settings/import'),

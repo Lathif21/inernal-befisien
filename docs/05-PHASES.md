@@ -261,9 +261,10 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - Status flow: draft → sent → partial / paid. Void.
 - _Note: `/invoices` (search on number / client, status chips with counts, 25 per page), `/invoices/new` (prefill with `?client=` / `?project=`; the project's contract value goes into item 1; due date = issue + 14 days) and `/invoices/[id]` share `InvoiceEditor` (Superforms `dataType: 'json'`; the client cannot change after creation). Only a draft can be edited; its issue date must stay in the month that gave it its number. "Tandai Terkirim" makes it read-only (draft → sent). "Batalkan invoice" voids it (refused once a payment is linked). Partial / paid come from payments in P2-07; "Unduh PDF" and "Catat Pembayaran" are disabled placeholders until P2-06 / P2-07. Every change goes on the client's timeline. Verified in the browser: live totals match a hand calculation (59.000.000 + PPN 6.490.000 = 65.490.000; less PPh 23 1.180.000 = 64.310.000 received) and the server's totals; no overflow at 390 px._
 
-### [ ] P2-06 Invoice PDF
+### [x] P2-06 Invoice PDF
 
 - Befisien-branded PDF (logo, company details, bank account, NPWP, terbilang). Download from the editor.
+- _Note: `pdfmake` on the server (`src/lib/server/pdf/invoice-pdf.ts`), A4, Plus Jakarta Sans and the logo mark bundled into the server code (no disk reads, works on Vercel). Route `/invoices/[id]/pdf` (download; `?view` opens it in the browser), from saved data only. Contents: letterhead (logo, company name, address, phone, email, NPWP), bill-to with the client's NPWP, issue / due date and project, items, totals (taxes that are off are left out; "Jumlah ditransfer" = total − PPh 23), terbilang of the total (`#lib/terbilang.ts`), notes, bank account, signature block with city and date. Watermark DRAF / DIBATALKAN / LUNAS. Added at the user's request: **Pengaturan → Profil perusahaan** (admin, migration 0007 `company_profile`, one row). Until it is saved, example values are used (bank and NPWP are placeholders) and the invoice page and settings page say so. Ligatures are off so copied text reads "Befisien", not "Befsien"._
 
 ### [ ] P2-07 Payments against invoices
 

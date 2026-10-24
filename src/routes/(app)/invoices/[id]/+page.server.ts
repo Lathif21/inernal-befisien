@@ -7,6 +7,7 @@ import { invoiceSchema, type InvoiceInput } from '#lib/schemas/invoice.ts';
 import { db } from '#lib/server/db/index.ts';
 import { runSimpleAction } from '#lib/server/forms.ts';
 import { requireUser } from '#lib/server/guards.ts';
+import { getCompanyProfile } from '#lib/server/services/company.ts';
 import { ServiceError } from '#lib/server/services/errors.ts';
 import {
 	getInvoice,
@@ -26,7 +27,11 @@ function idOr404(raw: string) {
 export const load: PageServerLoad = async ({ params, locals }) => {
 	requireUser(locals);
 	const id = idOr404(params.id);
-	const [inv, targets] = await Promise.all([getInvoice(db, id), listInvoiceTargets(db)]);
+	const [inv, targets, company] = await Promise.all([
+		getInvoice(db, id),
+		listInvoiceTargets(db),
+		getCompanyProfile(db)
+	]);
 	if (!inv) error(404, 'Invoice tidak ditemukan.');
 	const form = await superValidate<InvoiceInput, FormMessage>(
 		{
@@ -47,7 +52,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		zod4(invoiceSchema),
 		{ errors: false }
 	);
-	return { invoice: inv, form, targets };
+	return { invoice: inv, form, targets, companyIsExample: company.isExample };
 };
 
 export const actions: Actions = {
