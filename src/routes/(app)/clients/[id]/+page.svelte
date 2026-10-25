@@ -467,12 +467,14 @@
 			<div class="flex flex-col gap-6">
 				{#if !archived}
 					<AiPanel
+						off={!data.aiSuggestionsOn}
+						schedule={data.aiSchedule}
 						suggestions={data.suggestions}
 						cardsFor={() => aiCards}
 						assignees={data.owners}
 						onaccept={aiAccept}
 						ondismiss={aiDismiss}
-						onask={data.aiEnabled ? aiAsk : undefined}
+						onask={data.aiEnabled && data.aiSuggestionsOn ? aiAsk : undefined}
 						limit={3}
 					/>
 				{/if}

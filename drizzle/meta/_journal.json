@@ -78,6 +78,13 @@
       "when": 1792851466234,
       "tag": "0010_client_context",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792911829930,
+      "tag": "0011_app_settings",
+      "breakpoints": true
     }
   ]
 }

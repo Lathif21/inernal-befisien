@@ -27,7 +27,7 @@
 		ondeletestep: (step: StrategyStep) => void;
 		onedit: () => void;
 		onstatus: (status: 'achieved' | 'dropped') => void;
-		/** "Minta saran AI" for this plan; omitted = button disabled (AI not configured) */
+		/** "Minta saran AI" for this plan; omitted = no button (AI key missing or Saran AI off) */
 		onask?: () => Promise<void>;
 	};
 
@@ -266,17 +266,20 @@
 				<Plus size={15} strokeWidth={2} />
 				Tambah langkah
 			</button>
-			<!-- Asks the AI for suggestions on this plan (P2-02); they appear under Saran AI -->
-			<button
-				type="button"
-				class="bf-btn bf-btn--ai bf-btn--sm"
-				disabled={!onask || asking}
-				title={onask ? 'Saran muncul di bagian Saran AI' : 'AI belum diatur'}
-				onclick={ask}
-			>
-				<Sparkles size={15} strokeWidth={1.9} class={asking ? 'animate-pulse' : ''} />
-				{asking ? 'Meminta saran…' : 'Minta saran AI'}
-			</button>
+			<!-- Asks the AI for suggestions on this plan (P2-02); they appear under Saran AI. Hidden
+				when the AI key is missing or Saran AI is off (Pengaturan → Saran AI). -->
+			{#if onask}
+				<button
+					type="button"
+					class="bf-btn bf-btn--ai bf-btn--sm"
+					disabled={asking}
+					title="Saran muncul di bagian Saran AI"
+					onclick={ask}
+				>
+					<Sparkles size={15} strokeWidth={1.9} class={asking ? 'animate-pulse' : ''} />
+					{asking ? 'Meminta saran…' : 'Minta saran AI'}
+				</button>
+			{/if}
 		</div>
 	{/if}
 </article>

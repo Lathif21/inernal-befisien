@@ -143,7 +143,7 @@ List with status chips. Editor with items, PPN / PPh 23 toggles, live totals, "U
 - **Kategori:** income and expense categories
 - **Import Data:** CSV upload → preview → import
 - **Profil perusahaan (P2-06, admin):** company name, address, city, phone, email, NPWP, bank account and signer printed on invoice PDFs. Example values until saved.
-- **AI (P2):** on/off, time of the daily run
+- **Saran AI (`/settings/ai`, admin):** on / off and the schedule of the automatic run: Harian (time), Mingguan (weekday + time), Bulanan (date + time) or Hanya manual; 30-minute steps, WIB; shows the next and the last run.
 
 ---
 

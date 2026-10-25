@@ -33,6 +33,7 @@ import {
 	listOpenSuggestions
 } from './ai-suggestions';
 import { updateAction, type CardRef } from './actions';
+import { getAiSettings } from './ai-settings';
 import { ServiceError } from './errors';
 import { addPlanStep, createPlan } from './plans';
 
@@ -109,7 +110,8 @@ async function loadStrategyData(db: DbOrTx, clientId: string) {
 			.leftJoin(project, eq(project.id, strategyPlan.projectId))
 			.where(and(eq(strategyPlan.clientId, clientId), eq(strategyPlan.status, 'active')))
 			.orderBy(asc(strategyPlan.createdAt)),
-		listOpenSuggestions(db, { clientId })
+		// Saran AI off: no suggestions in the chat (the conversation itself still works)
+		getAiSettings(db).then((s) => (s.enabled ? listOpenSuggestions(db, { clientId }) : []))
 	]);
 	const steps = plans.length
 		? await db

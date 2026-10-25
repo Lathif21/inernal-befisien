@@ -14,6 +14,7 @@ import {
 	dismissSuggestion,
 	generateSuggestions
 } from '#lib/server/services/ai-suggestions.ts';
+import { getAiSettings } from '#lib/server/services/ai-settings.ts';
 import { refreshClientContext, saveClientContext } from '#lib/server/services/client-context.ts';
 import { ServiceError } from '#lib/server/services/errors.ts';
 
@@ -85,6 +86,8 @@ export const aiActions = {
 	askAi: async (event: RequestEvent) => {
 		requireUser(event.locals);
 		if (!aiEnabled()) return fail(400, { error: 'AI belum diatur di server (SUMOPOD_API_KEY).' });
+		if (!(await getAiSettings(db)).enabled)
+			return fail(400, { error: 'Saran AI dimatikan. Nyalakan di Pengaturan → Saran AI.' });
 		const form = await event.request.formData();
 		const planId = id.safeParse(form.get('planId'));
 		const clientIdIn = id.safeParse(form.get('clientId'));

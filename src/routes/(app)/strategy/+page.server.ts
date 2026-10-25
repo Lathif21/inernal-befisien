@@ -25,6 +25,8 @@ import {
 import { stepActions } from '#lib/server/step-actions.ts';
 import { aiActions } from '#lib/server/ai-actions.ts';
 import { aiEnabled } from '#lib/server/ai-config.ts';
+import { scheduleText } from '#lib/ai-schedule.ts';
+import { getAiSettings } from '#lib/server/services/ai-settings.ts';
 import { listOpenSuggestions } from '#lib/server/services/ai-suggestions.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -57,6 +59,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		superValidate(zod4(planSchema)),
 		listOpenSuggestions(db)
 	]);
+	const aiSettings = await getAiSettings(db);
 
 	return {
 		plans,
@@ -67,6 +70,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		planForm,
 		suggestions,
 		aiEnabled: aiEnabled(),
+		// Pengaturan → Saran AI (Ringkasan konteks keeps `aiEnabled` only)
+		aiSuggestionsOn: aiSettings.enabled,
+		aiSchedule: scheduleText(aiSettings),
 		period,
 		params: p
 	};

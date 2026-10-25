@@ -8,6 +8,7 @@ import { addDays } from '../../period';
 import type { DbOrTx } from '../db/client';
 import { action, client, deal, project, user } from '../db/schema/index';
 import { escapeHtml } from '../notify/telegram';
+import { getAiSettings } from './ai-settings';
 import { countOpenSuggestions } from './ai-suggestions';
 import { invoiceAttention, type InvoiceAlert, type InvoiceAttention } from './invoice-jobs';
 
@@ -352,7 +353,8 @@ export async function runDailyDigest(
 	}
 ) {
 	const users = await db.select(digestUserFields).from(user).where(eq(user.digestEnabled, true));
-	const aiNew = opts.aiNew ?? (await countOpenSuggestions(db));
+	const aiNew =
+		opts.aiNew ?? ((await getAiSettings(db)).enabled ? await countOpenSuggestions(db) : 0);
 	const invoices = opts.invoices ?? (await invoiceAttention(db, opts.now));
 	const results: DigestResult[] = [];
 	for (const u of users) results.push(await sendDigest(db, u, { ...opts, aiNew, invoices }));

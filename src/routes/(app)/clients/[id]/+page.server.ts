@@ -35,6 +35,8 @@ import {
 import { transactionActions } from '#lib/server/transaction-actions.ts';
 import { aiActions } from '#lib/server/ai-actions.ts';
 import { aiEnabled } from '#lib/server/ai-config.ts';
+import { scheduleText } from '#lib/ai-schedule.ts';
+import { getAiSettings } from '#lib/server/services/ai-settings.ts';
 import { getClientContext } from '#lib/server/services/client-context.ts';
 import { listOpenSuggestions } from '#lib/server/services/ai-suggestions.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -112,6 +114,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		tab === 'ringkasan' ? listOpenSuggestions(db, { clientId: id }) : Promise.resolve([]),
 		tab === 'ringkasan' ? getClientContext(db, id) : Promise.resolve(null)
 	]);
+	const aiSettings = await getAiSettings(db);
 
 	return {
 		client,
@@ -128,6 +131,9 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		suggestions,
 		context,
 		aiEnabled: aiEnabled(),
+		// Pengaturan → Saran AI (Ringkasan konteks keeps `aiEnabled` only)
+		aiSuggestionsOn: aiSettings.enabled,
+		aiSchedule: scheduleText(aiSettings),
 		clientForm,
 		contactForm,
 		noteForm

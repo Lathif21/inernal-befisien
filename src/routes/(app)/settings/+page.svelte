@@ -8,6 +8,7 @@
 	import FileUp from '@lucide/svelte/icons/file-up';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Send from '@lucide/svelte/icons/send';
+	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Tags from '@lucide/svelte/icons/tags';
 	import Users from '@lucide/svelte/icons/users';
 	import Topbar from '#lib/components/layout/Topbar.svelte';
@@ -31,6 +32,12 @@
 			icon: Tags,
 			title: 'Kategori',
 			text: 'Kategori pemasukan dan pengeluaran.'
+		},
+		{
+			href: resolve('settings/ai'),
+			icon: Sparkles,
+			title: 'Saran AI',
+			text: 'Nyalakan atau matikan Saran AI, dan atur jadwalnya (harian, mingguan, bulanan).'
 		},
 		{
 			href: resolve('settings/company'),

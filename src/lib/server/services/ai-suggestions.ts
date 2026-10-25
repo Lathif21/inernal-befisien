@@ -649,8 +649,12 @@ export async function dismissSuggestion(db: DbOrTx, id: string, userId: string, 
 }
 
 /** Daily clean-up (ai-expire-suggestions): untouched suggestions older than 7 days */
-export async function expireSuggestions(db: DbOrTx, now = new Date()) {
-	const cutoff = new Date(now.getTime() - SUGGESTION_TTL_DAYS * 86_400_000);
+export async function expireSuggestions(
+	db: DbOrTx,
+	now = new Date(),
+	ttlDays = SUGGESTION_TTL_DAYS
+) {
+	const cutoff = new Date(now.getTime() - ttlDays * 86_400_000);
 	const rows = await db
 		.update(aiSuggestion)
 		.set({ status: 'expired' })

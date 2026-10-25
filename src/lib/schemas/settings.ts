@@ -1,6 +1,7 @@
-// Settings forms: users (P1-13), transaction categories and the company profile (P2-06).
+// Settings forms: users (P1-13), transaction categories, the company profile (P2-06) and Saran AI.
 import { z } from 'zod';
 import { TXN_TYPES, USER_ROLES } from '../constants';
+import { AI_FREQUENCIES, AI_TIMES } from '../ai-schedule';
 import { phoneNormalize } from '../format';
 
 /** Empty = generate one and show it once */
@@ -93,3 +94,13 @@ export const companySchema = z.object({
 	signerTitle: text(80, 'Jabatan')
 });
 export type CompanyInput = z.infer<typeof companySchema>;
+
+/** Pengaturan → Saran AI (checkbox posts "on") */
+export const aiSettingsSchema = z.object({
+	enabled: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()),
+	frequency: z.enum(AI_FREQUENCIES, { message: 'Pilih jadwal.' }),
+	time: z.enum(AI_TIMES as [string, ...string[]], { message: 'Pilih jam (kelipatan 30 menit).' }),
+	weekday: z.coerce.number().int().min(1, 'Pilih hari.').max(7, 'Pilih hari.').default(1),
+	monthDay: z.coerce.number().int().min(1, 'Tanggal 1–31.').max(31, 'Tanggal 1–31.').default(1)
+});
+export type AiSettingsInput = z.infer<typeof aiSettingsSchema>;

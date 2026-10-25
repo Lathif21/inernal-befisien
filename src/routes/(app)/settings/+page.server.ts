@@ -5,6 +5,7 @@ import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/schema/index.ts';
 import { appUrl, senders } from '#lib/server/digest-senders.ts';
 import { requireUser } from '#lib/server/guards.ts';
+import { getAiSettings } from '#lib/server/services/ai-settings.ts';
 import { countOpenSuggestions } from '#lib/server/services/ai-suggestions.ts';
 import { getDigestUser, sendDigest, type ChannelResult } from '#lib/server/services/digest.ts';
 import { invoiceAttention } from '#lib/server/services/invoice-jobs.ts';
@@ -87,7 +88,7 @@ export const actions: Actions = {
 		const r = await sendDigest(db, u, {
 			appUrl,
 			senders,
-			aiNew: await countOpenSuggestions(db),
+			aiNew: (await getAiSettings(db)).enabled ? await countOpenSuggestions(db) : 0,
 			invoices: await invoiceAttention(db)
 		});
 		if (r.telegram === 'skipped' && r.mail === 'skipped')

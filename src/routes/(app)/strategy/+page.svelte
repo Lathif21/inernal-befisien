@@ -362,7 +362,7 @@
 						ondeletestep={openDeleteStep}
 						onedit={() => planDrawer?.openEdit(plan)}
 						onstatus={(status) => planStatus(plan.id, status)}
-						onask={data.aiEnabled ? () => askAi(plan.id) : undefined}
+						onask={data.aiEnabled && data.aiSuggestionsOn ? () => askAi(plan.id) : undefined}
 					/>
 				{/each}
 				<Pager
@@ -378,6 +378,8 @@
 		<div class="contents lg:order-2 lg:flex lg:flex-col lg:gap-6">
 			<AiPanel
 				class="order-1"
+				off={!data.aiSuggestionsOn}
+				schedule={data.aiSchedule}
 				suggestions={data.suggestions}
 				showClient
 				{cardsFor}
