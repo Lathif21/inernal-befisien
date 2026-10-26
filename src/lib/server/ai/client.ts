@@ -7,10 +7,16 @@ export type AiConfig = {
 	/** e.g. claude-opus-5-5 (default), claude-sonnet-5-5, claude-haiku-5-5 */
 	model: string;
 	baseUrl?: string;
+	/** default 120 s */
+	timeoutMs?: number;
 };
 
 export const DEFAULT_AI_MODEL = 'claude-opus-5-5';
 export const DEFAULT_AI_BASE_URL = 'https://ai.sumopod.com/v1';
+
+/** 9router, an OpenAI-compatible proxy; runs on the machine at port 20128 by default */
+export const DEFAULT_ANALYSIS_BASE_URL = 'http://localhost:20128/v1';
+export const DEFAULT_ANALYSIS_MODEL = 'cc/claude-opus-5-5';
 
 export type AiRequest = {
 	system: string;
@@ -36,7 +42,7 @@ export type AiComplete = (req: AiRequest) => Promise<AiResult>;
 export function sumopodClient(config: AiConfig): AiComplete {
 	const baseUrl = (config.baseUrl || DEFAULT_AI_BASE_URL).replace(/\/$/, '');
 	return async (req) => {
-		if (!config.apiKey) throw new Error('SUMOPOD_API_KEY is not set');
+		if (!config.apiKey) throw new Error('AI API key is not set');
 		const res = await fetch(`${baseUrl}/chat/completions`, {
 			method: 'POST',
 			headers: {
@@ -45,6 +51,8 @@ export function sumopodClient(config: AiConfig): AiComplete {
 			},
 			body: JSON.stringify({
 				model: config.model,
+				// 9router streams unless told not to
+				stream: false,
 				// Reasoning models spend part of this on thinking; only used tokens are billed
 				max_tokens: req.maxTokens ?? 8000,
 				messages: [
@@ -56,7 +64,7 @@ export function sumopodClient(config: AiConfig): AiComplete {
 					json_schema: { name: req.schemaName, strict: true, schema: req.schema }
 				}
 			}),
-			signal: AbortSignal.timeout(120_000)
+			signal: AbortSignal.timeout(config.timeoutMs ?? 120_000)
 		});
 		if (!res.ok) throw new Error(`AI ${res.status}: ${(await res.text()).slice(0, 300)}`);
 		const data = (await res.json()) as {
@@ -85,4 +93,23 @@ export function sumopodClient(config: AiConfig): AiComplete {
 				: null
 		};
 	};
+}
+
+/**
+ * The model for analysis a person asks for (Telegram strategy chat, "Minta saran AI"): 9router
+ * when its key is set (NINEROUTER_API_KEY / NINEROUTER_MODEL / NINEROUTER_BASE_URL), otherwise
+ * `fallback`. Background jobs and message parsing stay on the cheaper default model.
+ */
+export function analysisClient(
+	nineRouter: { apiKey?: string; model?: string; baseUrl?: string },
+	fallback: AiComplete
+): AiComplete {
+	if (!nineRouter.apiKey) return fallback;
+	return sumopodClient({
+		apiKey: nineRouter.apiKey,
+		model: nineRouter.model || DEFAULT_ANALYSIS_MODEL,
+		baseUrl: nineRouter.baseUrl || DEFAULT_ANALYSIS_BASE_URL,
+		// A reasoning model with a high thinking budget; telegram-inbound allows 300 s in total
+		timeoutMs: 240_000
+	});
 }

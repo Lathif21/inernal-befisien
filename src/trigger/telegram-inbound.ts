@@ -2,7 +2,7 @@
 // asks the AI for a draft and replies with Simpan / Batal. Runs on Trigger.dev, so it reads
 // process.env and uses relative imports only.
 import { logger, task } from '@trigger.dev/sdk';
-import { DEFAULT_AI_MODEL, sumopodClient } from '../lib/server/ai/client';
+import { analysisClient, DEFAULT_AI_MODEL, sumopodClient } from '../lib/server/ai/client';
 import { groqTranscriber } from '../lib/server/ai/transcribe';
 import { createDb } from '../lib/server/db/client';
 import {
@@ -27,13 +27,22 @@ export const telegramInbound = task({
 		const token = env('TELEGRAM_BOT_TOKEN');
 		const send = (html: string, buttons?: { text: string; data: string }[]) =>
 			sendTelegramMessage(token, payload.chatId, html, buttons);
+		const complete = sumopodClient({
+			apiKey: env('SUMOPOD_API_KEY'),
+			model: env('AI_MODEL') || DEFAULT_AI_MODEL,
+			baseUrl: env('AI_BASE_URL') || undefined
+		});
 		try {
 			const result = await processInbound(db, payload, {
-				complete: sumopodClient({
-					apiKey: env('SUMOPOD_API_KEY'),
-					model: env('AI_MODEL') || DEFAULT_AI_MODEL,
-					baseUrl: env('AI_BASE_URL') || undefined
-				}),
+				complete,
+				analyze: analysisClient(
+					{
+						apiKey: env('NINEROUTER_API_KEY'),
+						model: env('NINEROUTER_MODEL'),
+						baseUrl: env('NINEROUTER_BASE_URL')
+					},
+					complete
+				),
 				transcribe: groqTranscriber({ apiKey: env('GROQ_API_KEY') }),
 				download: (fileId) => downloadTelegramFile(token, fileId),
 				send,

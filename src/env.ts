@@ -46,6 +46,19 @@ export const variables = defineEnvVars({
 		description: 'OpenAI-compatible base URL; default https://ai.sumopod.com/v1',
 		schema: optional
 	},
+	NINEROUTER_API_KEY: {
+		description:
+			'9router key for analysis on request (Telegram strategy chat, "Minta saran AI"); unset = Sumopod',
+		schema: optional
+	},
+	NINEROUTER_MODEL: {
+		description: '9router model for analysis; default cc/claude-opus-5-5',
+		schema: optional
+	},
+	NINEROUTER_BASE_URL: {
+		description: '9router OpenAI-compatible base URL; default http://localhost:20128/v1',
+		schema: optional
+	},
 	TRIGGER_SECRET_KEY: {
 		description:
 			'Trigger.dev secret key (tr_dev_… locally, tr_prod_… on the server); the Telegram webhook queues telegram-inbound with it',

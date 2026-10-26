@@ -5,7 +5,7 @@ import { fail, type RequestEvent } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { stepFieldsFrom, stepSchema } from '#lib/schemas/step.ts';
-import { aiComplete, aiEnabled } from '#lib/server/ai-config.ts';
+import { aiAnalyze, aiComplete, aiEnabled } from '#lib/server/ai-config.ts';
 import { db } from '#lib/server/db/index.ts';
 import { strategyPlan } from '#lib/server/db/schema/index.ts';
 import { requireUser } from '#lib/server/guards.ts';
@@ -109,7 +109,7 @@ export const aiActions = {
 				if (!(e instanceof ServiceError)) console.error('context refresh failed', e);
 			}
 			const r = await generateSuggestions(db, clientId, {
-				complete: aiComplete(),
+				complete: aiAnalyze(),
 				force: true,
 				planId: planId.success ? planId.data : undefined
 			});

@@ -564,6 +564,8 @@ export type InboundPayload = {
 
 export type InboundDeps = {
 	complete: AiComplete;
+	/** The model for strategy conversations (analysis); `complete` when not given */
+	analyze?: AiComplete;
 	transcribe: Transcribe;
 	download: (fileId: string) => Promise<{ data: Blob; name: string }>;
 	/** Send to the payload's chat; returns the message id */
@@ -622,13 +624,14 @@ export async function processInbound(
 
 	// An open strategy conversation answers follow-ups first; a message about something else
 	// ("leave") goes on to the normal input below
+	const strategyDeps = { ...deps, complete: deps.analyze ?? deps.complete };
 	const chatRow = await openStrategyChat(db, payload.chatId, now);
 	if (chatRow) {
 		const chat = chatRow.payload as unknown as StrategyChat;
 		const turn = await runStrategyTurn(
 			db,
 			{ ...payload, clientId: chat.clientId, text: input, source, row: chatRow },
-			deps,
+			strategyDeps,
 			now
 		);
 		if (turn.status === 'answered')
@@ -660,7 +663,7 @@ export async function processInbound(
 		const turn = await runStrategyTurn(
 			db,
 			{ ...payload, clientId, text: input, source, row: null },
-			deps,
+			strategyDeps,
 			now
 		);
 		return {
