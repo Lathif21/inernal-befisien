@@ -11,7 +11,13 @@
 	import ComposeDrawer from '#lib/components/inbox/ComposeDrawer.svelte';
 	import EmailBody from '#lib/components/inbox/EmailBody.svelte';
 	import Topbar from '#lib/components/layout/Topbar.svelte';
-	import { addressLabel, parseAddress } from '#lib/email.ts';
+	import {
+		addressLabel,
+		attachmentExpired,
+		fileSize,
+		parseAddress,
+		RESEND_RETENTION_DAYS
+	} from '#lib/email.ts';
 	import { refreshThenToast } from '#lib/enhance.ts';
 	import { dateID } from '#lib/format.ts';
 	import { toast } from '#lib/toast.ts';
@@ -38,12 +44,6 @@
 		const a = parseAddress(raw);
 		return a ? addressLabel(a) : raw;
 	};
-
-	function size(bytes: number) {
-		if (bytes < 1024) return `${bytes} B`;
-		if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-		return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
-	}
 
 	const replyTo = $derived(data.reply.to ? label(data.reply.to.split(',')[0]) : '');
 </script>
@@ -165,15 +165,29 @@
 					<ul class="flex flex-wrap gap-2" aria-label="Lampiran">
 						{#each m.attachments as a (a.id)}
 							<li>
-								<form method="post" action="?/attachment" target="_blank">
-									<input type="hidden" name="emailId" value={m.id} />
-									<input type="hidden" name="attachmentId" value={a.id} />
-									<button type="submit" class="bf-btn bf-btn--secondary bf-btn--sm max-w-72">
+								{#if attachmentExpired(m.sentAt)}
+									<!-- Resend no longer has the file -->
+									<button
+										type="button"
+										class="bf-btn bf-btn--secondary bf-btn--sm max-w-72"
+										disabled
+										title="Resend menyimpan lampiran {RESEND_RETENTION_DAYS} hari"
+									>
 										<Paperclip size={14} strokeWidth={2} />
 										<span class="truncate">{a.filename}</span>
-										<span class="shrink-0 text-ink-3">{size(a.size)}</span>
+										<span class="shrink-0">kedaluwarsa</span>
 									</button>
-								</form>
+								{:else}
+									<form method="post" action="?/attachment" target="_blank">
+										<input type="hidden" name="emailId" value={m.id} />
+										<input type="hidden" name="attachmentId" value={a.id} />
+										<button type="submit" class="bf-btn bf-btn--secondary bf-btn--sm max-w-72">
+											<Paperclip size={14} strokeWidth={2} />
+											<span class="truncate">{a.filename}</span>
+											<span class="shrink-0 text-ink-3">{fileSize(a.size)}</span>
+										</button>
+									</form>
+								{/if}
 							</li>
 						{/each}
 					</ul>

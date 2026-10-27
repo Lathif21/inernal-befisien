@@ -4,15 +4,20 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
 	composeEmail,
+	EMAIL_MAX_FILES,
+	EMAIL_UPLOAD_LIMIT,
+	fileSize,
 	formatAddress,
 	headerValue,
 	htmlToText,
+	isBlockedFile,
 	isBulk,
 	parseAddress,
 	parseMessageIds,
 	replyReferences,
 	replySubject,
 	snippetOf,
+	uploadSize,
 	type Address,
 	type EmailBrand,
 	type Signature
@@ -21,6 +26,7 @@ import { phoneDisplay } from '../../format';
 import { contactSchema } from '../../schemas/contact';
 import type { DbOrTx } from '../db/client';
 import { client, contact, emailMessage, user, type EmailAttachment } from '../db/schema/index';
+import { cleanEmailHtml, embedImages, isEmptyBody } from '../email-html';
 import type { OutgoingMail } from '../notify/email';
 import type { ReceivedEmail } from '../notify/resend-inbound';
 import { escapeHtml } from '../notify/telegram';
@@ -232,10 +238,44 @@ export type SendInput = {
 	to: Address[];
 	cc: Address[];
 	subject: string;
+	/** The compose editor's HTML; pictures inside it are base64 `data:` sources */
 	body: string;
 	/** From the form, so a double submit sends once (Resend Idempotency-Key) */
 	key: string;
+	files?: SendFile[];
 };
+
+/** A file attached in the drawer */
+export type SendFile = { filename: string; contentType: string; data: Uint8Array };
+
+/** "Laporan Q3.pdf" as a safe attachment name (no path, quotes or line breaks) */
+const fileName = (raw: string) =>
+	raw
+		.split(/[\\/]/)
+		.pop()!
+		.replace(/[\r\n"<>]+/g, '_')
+		.trim()
+		.slice(-200) || 'lampiran';
+
+function checkFiles(body: string, files: SendFile[]) {
+	if (files.length > EMAIL_MAX_FILES)
+		throw new ServiceError(`Maksimal ${EMAIL_MAX_FILES} lampiran per email.`, 'files');
+	const blocked = files.find((f) => isBlockedFile(f.filename));
+	if (blocked)
+		throw new ServiceError(
+			`${blocked.filename} tidak bisa dikirim: file program ditolak layanan email.`,
+			'files'
+		);
+	const size = uploadSize(
+		body,
+		files.map((f) => ({ size: f.data.byteLength }))
+	);
+	if (size > EMAIL_UPLOAD_LIMIT)
+		throw new ServiceError(
+			`Lampiran dan gambar ${fileSize(size)}, maksimal ${fileSize(EMAIL_UPLOAD_LIMIT)} per email.`,
+			'files'
+		);
+}
 
 export type SendDeps = {
 	/** "Befisien Technologies <info@befisien.com>" */
@@ -282,7 +322,11 @@ export async function emailSignature(
 	};
 }
 
-/** Send an email or a threaded reply through Resend, then store it and log it on the timeline */
+/**
+ * Send an email or a threaded reply through Resend, then store it and log it on the timeline.
+ * Pictures in the body go out as inline attachments (cid:) and stay in the stored HTML as `data:`;
+ * files are kept by Resend only (RESEND_RETENTION_DAYS) and listed on the message.
+ */
 export async function sendEmailMessage(
 	db: DbOrTx,
 	input: SendInput,
@@ -290,7 +334,10 @@ export async function sendEmailMessage(
 	deps: SendDeps
 ) {
 	if (!input.to.length) throw new ServiceError('Isi minimal satu penerima.', 'to');
-	if (!input.body.trim()) throw new ServiceError('Tulis isi email.', 'body');
+	const files = (input.files ?? []).map((f) => ({ ...f, filename: fileName(f.filename) }));
+	checkFiles(input.body, files);
+	const body = cleanEmailHtml(input.body);
+	if (isEmptyBody(body)) throw new ServiceError('Tulis isi email.', 'body');
 	const parent = input.threadId ? await lastMessage(db, input.threadId) : null;
 	if (input.threadId && !parent) throw new ServiceError('Percakapan email tidak ditemukan.');
 
@@ -299,7 +346,7 @@ export async function sendEmailMessage(
 		: input.subject.trim();
 	if (!subject) throw new ServiceError('Isi subjek email.', 'subject');
 	const { text, html } = composeEmail({
-		body: input.body,
+		body,
 		signature: await emailSignature(db, userId, deps),
 		parent: parent
 			? {
@@ -318,15 +365,31 @@ export async function sendEmailMessage(
 
 	const to = input.to.map(formatAddress);
 	const cc = input.cc.map(formatAddress);
+	const inline = embedImages(html);
 	const resendId = await deps.send({
 		to,
 		cc,
 		subject,
 		text,
-		html,
+		html: inline.html,
 		headers,
-		idempotencyKey: `email-${input.key}`
+		idempotencyKey: `email-${input.key}`,
+		attachments: [
+			...files.map((f) => ({
+				filename: f.filename,
+				content: Buffer.from(f.data).toString('base64'),
+				contentType: f.contentType || undefined
+			})),
+			...inline.images
+		]
 	});
+	const attachments: EmailAttachment[] = files.map((f, i) => ({
+		id: `out-${i + 1}`,
+		filename: f.filename,
+		contentType: f.contentType || 'application/octet-stream',
+		size: f.data.byteLength,
+		inline: false
+	}));
 
 	return db.transaction(async (tx) => {
 		const [existing] = await tx
@@ -347,7 +410,7 @@ export async function sendEmailMessage(
 				)
 			)?.clientId ??
 			null;
-		const snippet = snippetOf(input.body);
+		const snippet = snippetOf(htmlToText(body));
 		const now = new Date();
 		await tx.insert(emailMessage).values({
 			id,
@@ -365,6 +428,7 @@ export async function sendEmailMessage(
 			text,
 			html,
 			snippet,
+			attachments,
 			clientId,
 			userId,
 			readAt: now,
@@ -657,18 +721,31 @@ export async function linkThread(
 	});
 }
 
-/** The Resend ids needed to fetch a fresh attachment link; null when it is not ours */
+/**
+ * What is needed to fetch a fresh attachment link from Resend; null when it is not ours. A sent
+ * file is found by name (`nth` = how many earlier files had the same name), because Resend gives
+ * sent attachments ids of its own.
+ */
 export async function attachmentSource(db: DbOrTx, emailId: string, attachmentId: string) {
 	const [m] = await db
 		.select({
 			resendId: emailMessage.resendId,
 			direction: emailMessage.direction,
-			attachments: emailMessage.attachments
+			attachments: emailMessage.attachments,
+			sentAt: emailMessage.sentAt
 		})
 		.from(emailMessage)
 		.where(eq(emailMessage.id, emailId));
-	if (!m || m.direction !== 'in' || !m.attachments.some((a) => a.id === attachmentId)) return null;
-	return { resendId: m.resendId };
+	const index = m?.attachments.findIndex((a) => a.id === attachmentId) ?? -1;
+	if (!m || index < 0) return null;
+	const file = m.attachments[index];
+	return {
+		resendId: m.resendId,
+		direction: m.direction,
+		sentAt: m.sentAt,
+		filename: file.filename,
+		nth: m.attachments.slice(0, index).filter((a) => a.filename === file.filename).length
+	};
 }
 
 /** Telegram chats of every linked user: each new email is announced to the whole team */

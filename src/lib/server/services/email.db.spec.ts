@@ -10,6 +10,7 @@ import type { OutgoingMail } from '../notify/email';
 import { createClient } from './clients';
 import { saveContact } from './contacts';
 import {
+	attachmentSource,
 	getThread,
 	linkThread,
 	listThreads,
@@ -234,6 +235,72 @@ describe.skipIf(!isDevDb)('email inbox service (dev database)', { timeout: 30_00
 					'Email masuk: RE: Jadwal demo'
 				])
 			);
+		});
+	});
+
+	it('sends files and pasted pictures, keeps the pictures and lists the files', async () => {
+		await inRollback(async (tx, userId) => {
+			const budi = addr('files');
+			await clientWithContact(tx, userId, budi);
+			const { sent, deps } = fakeSender();
+			const png = 'data:image/png;base64,iVBORw0KGgo=';
+			const input = {
+				to: [{ name: 'Budi', email: budi }],
+				cc: [],
+				subject: 'Proposal dan denah',
+				body: `<p onclick="x()">Berikut denahnya:</p><img src="${png}" alt="denah"><script>alert(1)</script>`,
+				key: `kf-${run}`,
+				files: [
+					{
+						filename: 'C:\\fakepath\\Proposal "Q4".pdf',
+						contentType: 'application/pdf',
+						data: new TextEncoder().encode('%PDF-1.4')
+					}
+				]
+			};
+			const out = await sendEmailMessage(tx, input, userId, deps);
+
+			const mail = sent[0];
+			expect(mail.html).not.toMatch(/script|onclick|data:image/);
+			const cid = /src="cid:([^"]+)"/.exec(mail.html)?.[1];
+			expect(mail.attachments).toEqual([
+				{
+					filename: 'Proposal _Q4_.pdf',
+					content: Buffer.from('%PDF-1.4').toString('base64'),
+					contentType: 'application/pdf'
+				},
+				expect.objectContaining({ contentId: cid, contentType: 'image/png' })
+			]);
+			expect(mail.text).toContain('Berikut denahnya:\n[gambar]');
+
+			const [stored] = await tx.select().from(emailMessage).where(eq(emailMessage.id, out.id));
+			expect(stored.html).toContain(`src="${png}"`);
+			expect(stored.attachments).toEqual([
+				{
+					id: 'out-1',
+					filename: 'Proposal _Q4_.pdf',
+					contentType: 'application/pdf',
+					size: 8,
+					inline: false
+				}
+			]);
+			expect(await attachmentSource(tx, out.id, 'out-1')).toMatchObject({
+				direction: 'out',
+				filename: 'Proposal _Q4_.pdf',
+				nth: 0
+			});
+
+			await expect(
+				sendEmailMessage(
+					tx,
+					{ ...input, key: `kf2-${run}`, files: [{ ...input.files[0], filename: 'setup.exe' }] },
+					userId,
+					deps
+				)
+			).rejects.toThrow(/file program/);
+			await expect(
+				sendEmailMessage(tx, { ...input, key: `kf3-${run}`, body: '<p> </p>' }, userId, deps)
+			).rejects.toThrow('Tulis isi email.');
 		});
 	});
 

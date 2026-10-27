@@ -2,6 +2,15 @@
 
 export type EmailConfig = { apiKey: string; from: string };
 
+export type OutgoingAttachment = {
+	filename: string;
+	/** Base64 */
+	content: string;
+	contentType?: string;
+	/** Set for a picture inside the HTML (`<img src="cid:…">`) */
+	contentId?: string;
+};
+
 export type OutgoingMail = {
 	to: string | string[];
 	subject: string;
@@ -13,6 +22,8 @@ export type OutgoingMail = {
 	headers?: Record<string, string>;
 	/** Same key within 24 h = Resend sends once and returns the same id (double submit) */
 	idempotencyKey?: string;
+	/** Files and inline pictures; 40 MB per email after base64 (Resend) */
+	attachments?: OutgoingAttachment[];
 };
 
 export async function sendEmail(config: EmailConfig, mail: OutgoingMail) {
@@ -32,7 +43,17 @@ export async function sendEmail(config: EmailConfig, mail: OutgoingMail) {
 			text: mail.text,
 			...(mail.cc?.length ? { cc: mail.cc } : {}),
 			...(mail.replyTo ? { reply_to: mail.replyTo } : {}),
-			...(mail.headers && Object.keys(mail.headers).length ? { headers: mail.headers } : {})
+			...(mail.headers && Object.keys(mail.headers).length ? { headers: mail.headers } : {}),
+			...(mail.attachments?.length
+				? {
+						attachments: mail.attachments.map((a) => ({
+							filename: a.filename,
+							content: a.content,
+							...(a.contentType ? { content_type: a.contentType } : {}),
+							...(a.contentId ? { content_id: a.contentId } : {})
+						}))
+					}
+				: {})
 		})
 	});
 	if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);

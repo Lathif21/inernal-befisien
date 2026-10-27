@@ -214,6 +214,8 @@ befisien.com's MX points to **Resend Inbound** (Zoho Mail Free has no IMAP and n
 
 Any other error answers 500 and Resend retries; a repeat stores nothing. Replies go out through the Resend send API from `INBOX_FROM`, with `In-Reply-To` / `References` and an `Idempotency-Key` from the form. Email HTML is shown only in a sandboxed iframe (no scripts, its own CSP, remote images off until "Tampilkan gambar").
 
+Writing in the CRM uses a rich-text editor (Tiptap). Pictures pasted or dropped into the text are shrunk in the browser and posted as base64 inside the HTML; the server cleans the HTML (sanitize-html, only the editor's tags), sends each picture as an inline attachment (`cid:`) and stores the `data:` version, so the thread keeps showing it. Files go to Resend as attachments and are not copied: Resend keeps them 30 days, the thread fetches a fresh link until then. Files and pictures together are limited to 4 MiB per email, under Vercel's 4.5 MB request limit; adapter-node accepts only 512 kB by default, so the VPS needs `BODY_SIZE_LIMIT`.
+
 ## Environment variables
 
 ```
@@ -222,6 +224,7 @@ DATABASE_URL_UNPOOLED=postgres://…ap-southeast-1.aws.neon.tech/neondb?sslmode=
 BETTER_AUTH_SECRET=…
 BETTER_AUTH_URL=https://crm.befisien.com
 ORIGIN=https://crm.befisien.com          # adapter-node
+BODY_SIZE_LIMIT=6M                       # adapter-node: email attachments + pictures (default 512K)
 RESEND_API_KEY=…
 MAIL_FROM="Befisien CRM <info@befisien.com>"
 RESEND_WEBHOOK_SECRET=whsec_…              # Kotak Masuk: Resend webhook email.received → /api/email

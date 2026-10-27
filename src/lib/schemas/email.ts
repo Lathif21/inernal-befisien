@@ -1,6 +1,6 @@
 // Email page forms (P3-08): write / reply, and link a thread to a client.
 import { z } from 'zod';
-import { parseAddressList } from '../email';
+import { EMAIL_UPLOAD_LIMIT, parseAddressList } from '../email';
 
 const addressList = (required: boolean) =>
 	z
@@ -25,7 +25,12 @@ export const emailSendSchema = z.object({
 	to: addressList(true),
 	cc: addressList(false),
 	subject: z.string().trim().max(250, 'Subjek maksimal 250 karakter.').default(''),
-	body: z.string().trim().min(1, 'Tulis isi email.').max(50_000, 'Isi email terlalu panjang.'),
+	/** The editor's HTML, pictures included as base64 (EMAIL_UPLOAD_LIMIT checks the real size) */
+	body: z
+		.string()
+		.trim()
+		.min(1, 'Tulis isi email.')
+		.max(EMAIL_UPLOAD_LIMIT + 100_000, 'Isi email terlalu besar.'),
 	/** Made when the form opens: a double submit sends once */
 	key: z.uuid()
 });

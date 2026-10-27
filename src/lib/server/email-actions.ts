@@ -1,4 +1,5 @@
-// Form action shared by the Email page (new email) and a thread (reply), P3-08.
+// Form action shared by the Email page (new email) and a thread (reply), P3-08. Multipart: the
+// editor's HTML in `body`, attached files in `files`.
 import { fail, type RequestEvent } from '@sveltejs/kit';
 import { emailSendSchema } from '#lib/schemas/email.ts';
 import { db } from '#lib/server/db/index.ts';
@@ -10,16 +11,27 @@ import { sendEmailMessage } from '#lib/server/services/email.ts';
 /** `{ done, threadId }`, or `fail(400, { error, field })` with an Indonesian message */
 export async function sendEmailAction({ request, locals }: RequestEvent) {
 	const user = requireUser(locals);
-	const parsed = emailSendSchema.safeParse(Object.fromEntries(await request.formData()));
+	const form = await request.formData();
+	const parsed = emailSendSchema.safeParse(Object.fromEntries(form));
 	if (!parsed.success) {
 		const issue = parsed.error.issues[0];
 		return fail(400, { error: issue.message, field: String(issue.path[0] ?? '') });
 	}
 	const { threadId, ...input } = parsed.data;
 	try {
+		const files = await Promise.all(
+			form
+				.getAll('files')
+				.filter((f): f is File => f instanceof File && f.size > 0)
+				.map(async (f) => ({
+					filename: f.name,
+					contentType: f.type,
+					data: new Uint8Array(await f.arrayBuffer())
+				}))
+		);
 		const sent = await sendEmailMessage(
 			db,
-			{ ...input, threadId: threadId || undefined },
+			{ ...input, threadId: threadId || undefined, files },
 			user.id,
 			sendDeps
 		);

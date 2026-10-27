@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+	attachmentExpired,
 	composeEmail,
+	fileSize,
+	isBlockedFile,
+	uploadSize,
 	formatAddress,
 	headerValue,
 	htmlToText,
@@ -174,5 +178,40 @@ Pada 27 Okt 2026 10:00 WIB, Ani <ani@x.id> menulis:
 		expect(text).not.toContain('menulis:');
 		expect(html).toContain('PT &lt;A&amp;B&gt;');
 		expect(textToHtml('Halo\n> kutipan')).toContain('<blockquote');
+	});
+
+	it('writes the plain-text part from the editor HTML, pictures as [gambar]', () => {
+		const { text, html } = composeEmail({
+			body: '<p style="margin:0 0 12px">Halo <strong>Budi</strong>,</p><img src="data:image/png;base64,AAAA" alt="denah"><ul><li>satu</li></ul>',
+			signature
+		});
+		expect(text.split('\n\n')[0]).toBe('Halo Budi,\n[gambar]\n• satu');
+		expect(html).toContain('<strong>Budi</strong>');
+		expect(html).toContain('src="data:image/png;base64,AAAA"');
+	});
+});
+
+describe('attachments', () => {
+	it('weighs the body and the files together', () => {
+		expect(uploadSize('<p>abc</p>', [{ size: 100 }, { size: 20 }])).toBe(130);
+	});
+
+	it('refuses program files', () => {
+		expect(isBlockedFile('setup.EXE')).toBe(true);
+		expect(isBlockedFile('script.js')).toBe(true);
+		expect(isBlockedFile('Proposal.pdf')).toBe(false);
+		expect(isBlockedFile('data.json')).toBe(false);
+	});
+
+	it('expires attachments after Resend’s 30 days', () => {
+		const now = new Date('2026-10-27T00:00:00Z');
+		expect(attachmentExpired(new Date('2026-09-28T00:00:00Z'), now)).toBe(false);
+		expect(attachmentExpired('2026-09-26T00:00:00Z', now)).toBe(true);
+	});
+
+	it('formats file sizes', () => {
+		expect(fileSize(820)).toBe('820 B');
+		expect(fileSize(35_000)).toBe('34 KB');
+		expect(fileSize(1_468_006)).toBe('1,4 MB');
 	});
 });

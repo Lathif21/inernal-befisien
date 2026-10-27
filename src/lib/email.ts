@@ -225,6 +225,56 @@ function blocks(text: string) {
 	return out.join('');
 }
 
+/**
+ * Inline styles for the tags the compose editor writes (cleanEmailHtml sets them, replacing
+ * whatever style came in), so the message looks the same in Gmail and Outlook.
+ */
+export const BODY_STYLES: Record<string, string> = {
+	p: 'margin:0 0 12px',
+	h2: `margin:16px 0 8px;font-size:18px;line-height:1.3;color:${INK}`,
+	h3: `margin:16px 0 8px;font-size:16px;line-height:1.3;color:${INK}`,
+	ul: 'margin:0 0 12px;padding-left:24px',
+	ol: 'margin:0 0 12px;padding-left:24px',
+	li: 'margin:0 0 4px',
+	blockquote: `margin:0 0 12px;border-left:2px solid ${LINE};padding-left:12px;color:${INK_2}`,
+	a: `color:${ACCENT}`,
+	img: 'display:block;max-width:100%;height:auto;margin:0 0 12px;border:0',
+	pre: `margin:0 0 12px;padding:10px 12px;background:${TINT_2};border-radius:6px;white-space:pre-wrap`,
+	code: 'font-family:Consolas,Menlo,monospace;font-size:13px',
+	hr: `border:0;border-top:1px solid ${LINE};margin:16px 0`
+};
+
+/**
+ * Files and pictures together, measured as the request carries them (pictures as base64 inside the
+ * body). Vercel refuses requests over 4.5 MB; on the VPS this can grow together with adapter-node's
+ * BODY_SIZE_LIMIT.
+ */
+export const EMAIL_UPLOAD_LIMIT = 4 * 1024 * 1024;
+export const EMAIL_MAX_FILES = 10;
+
+/** What one email weighs on the way up: the body (pictures included) plus the files */
+export const uploadSize = (bodyHtml: string, files: { size: number }[]) =>
+	bodyHtml.length + files.reduce((sum, f) => sum + f.size, 0);
+
+// Program files: Resend (and Gmail) refuse them, so the drawer says so before sending
+const BLOCKED_FILE =
+	/\.(adp|app|bat|cmd|com|cpl|exe|hta|inf|ins|jar|js|jse|lnk|msc|msi|msp|pif|ps1|reg|scr|sct|shb|shs|sys|vb|vbe|vbs|ws|wsc|wsf|wsh)$/i;
+
+export const isBlockedFile = (filename: string) => BLOCKED_FILE.test(filename.trim());
+
+/** Resend keeps sent and received emails, attachments included, for this many days */
+export const RESEND_RETENTION_DAYS = 30;
+
+export const attachmentExpired = (sentAt: Date | string, now = new Date()) =>
+	now.getTime() - new Date(sentAt).getTime() > RESEND_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+/** "820 B", "35 KB", "1,4 MB" */
+export function fileSize(bytes: number) {
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+	return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
+}
+
 /** Plain text as simple HTML (paragraphs, line breaks, quotes) */
 export function textToHtml(text: string) {
 	return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:${INK}">${blocks(text)}</div>`;
@@ -294,11 +344,13 @@ export function signatureHtml(s: Signature) {
 
 /**
  * The email as sent: the message, the signature, and for a reply the earlier message quoted
- * under it (like Gmail). `text` is also what the thread stores and shows.
+ * under it (like Gmail). `body` is the editor's HTML after cleanEmailHtml; `text` (the plain-text
+ * part, also what the thread stores) is made from it.
  */
 export function composeEmail(input: { body: string; signature: Signature; parent?: ReplyParent }) {
 	const body = input.body.trim();
-	const parts = [body, signatureText(input.signature)];
+	const bodyText = htmlToText(body.replace(/<img\b[^>]*>/gi, '<p>[gambar]</p>'));
+	const parts = [bodyText, signatureText(input.signature)];
 	if (input.parent) parts.push(`${quoteIntro(input.parent)}\n${quoteLines(input.parent.text)}`);
 	const text = parts.join('\n\n');
 
@@ -307,7 +359,7 @@ export function composeEmail(input: { body: string; signature: Signature; parent
 		: '';
 	const html =
 		`<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:${INK};max-width:640px">` +
-		blocks(body) +
+		body +
 		signatureHtml(input.signature) +
 		quote +
 		`</div>`;

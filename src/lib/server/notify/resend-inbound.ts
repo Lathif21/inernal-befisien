@@ -1,4 +1,5 @@
-// Resend Inbound (P3-08) over the REST API (no SDK): webhook signatures and received emails.
+// Resend Inbound (P3-08) over the REST API (no SDK): webhook signatures, received emails, and the
+// attachments of received and sent emails.
 // Relative imports only: shared with Trigger.dev. Docs: resend.com/docs/dashboard/receiving.
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
@@ -90,4 +91,25 @@ export async function getReceivedAttachment(apiKey: string, emailId: string, att
 		apiKey,
 		`/emails/receiving/${encodeURIComponent(emailId)}/attachments/${encodeURIComponent(attachmentId)}`
 	);
+}
+
+type AttachmentLink = ReceivedAttachment & { download_url: string; expires_at: string };
+
+/** The attachments of an email the CRM sent, each with a fresh download link (valid for an hour) */
+export async function getSentAttachments(apiKey: string, emailId: string) {
+	const res = await call<{ data: AttachmentLink[] }>(
+		apiKey,
+		`/emails/${encodeURIComponent(emailId)}/attachments`
+	);
+	return res.data;
+}
+
+/**
+ * The file a sent email listed as `filename` (its `nth` one with that name): Resend gives sent
+ * attachments its own ids, so the CRM finds them by name. Inline pictures are skipped.
+ */
+export function pickSentAttachment(list: AttachmentLink[], filename: string, nth: number) {
+	const files = list.filter((a) => !a.content_id && a.content_disposition !== 'inline');
+	const named = files.filter((a) => a.filename === filename);
+	return named[nth] ?? named[0] ?? null;
 }
