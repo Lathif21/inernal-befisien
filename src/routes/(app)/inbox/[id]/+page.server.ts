@@ -1,10 +1,10 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { emailLinkSchema } from '#lib/schemas/email.ts';
-import { signatureText } from '#lib/email.ts';
+import { signatureHtml } from '#lib/email.ts';
 import { db } from '#lib/server/db/index.ts';
 import { sendEmailAction } from '#lib/server/email-actions.ts';
-import { inboxFrom, resendKey } from '#lib/server/email-config.ts';
+import { inboxFrom, resendKey, sendDeps } from '#lib/server/email-config.ts';
 import { runSimpleAction } from '#lib/server/forms.ts';
 import { requireUser } from '#lib/server/guards.ts';
 import { getReceivedAttachment } from '#lib/server/notify/resend-inbound.ts';
@@ -30,7 +30,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const threadId = threadIdOr404(params.id);
 	const [thread, signature] = await Promise.all([
 		getThread(db, threadId),
-		emailSignature(db, user.id, inboxFrom)
+		emailSignature(db, user.id, sendDeps)
 	]);
 	if (!thread) error(404, 'Email tidak ditemukan.');
 	// Opening a thread reads it; the page refreshes the sidebar badge afterwards
@@ -40,7 +40,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		thread,
 		wasUnread,
 		reply: replyDefaults(thread.messages, inboxFrom.email),
-		signature: signatureText(signature),
+		signature: signatureHtml(signature),
 		clients: thread.client ? [] : await listDealClients(db)
 	};
 };

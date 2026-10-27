@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import Send from '@lucide/svelte/icons/send';
 	import Field from '#lib/components/form/Field.svelte';
+	import EmailBody from '#lib/components/inbox/EmailBody.svelte';
 	import Drawer from '#lib/components/layout/Drawer.svelte';
 	import { toast } from '#lib/toast.ts';
 
@@ -15,7 +16,7 @@
 		subject?: string;
 		/** Shown above the form, e.g. "Membalas Budi Santoso" */
 		description?: string;
-		/** The signature added under the message (signatureText), shown as a preview */
+		/** The signature card added under the message (signatureHtml), shown as a preview */
 		signature?: string;
 		/** After Resend accepted it; the page reloads or opens the thread */
 		onsent: (threadId: string) => Promise<void> | void;
@@ -31,9 +32,6 @@
 		signature = '',
 		onsent
 	}: Props = $props();
-
-	// Without the "--" line that separates it in the plain-text email
-	const signatureLines = $derived(signature.replace(/^--\n/, ''));
 
 	const formId = $derived(`email-form-${threadId || 'new'}`);
 	// One key per email written, so a double click or a retry after a timeout sends once
@@ -136,13 +134,12 @@
 			{/snippet}
 		</Field>
 
-		{#if signatureLines}
-			<div class="rounded-control bg-tint-2 px-3.5 py-3">
+		{#if signature}
+			<div class="flex flex-col gap-2">
 				<p class="text-small font-bold text-ink-2">Tanda tangan otomatis</p>
-				<p class="mt-1 border-l-2 border-accent pl-3 text-small whitespace-pre-line text-ink">
-					{signatureLines}
-				</p>
-				<p class="mt-2 text-small text-ink-3">
+				<!-- The same HTML the email carries, in the sandboxed email frame -->
+				<EmailBody html={signature} text={null} />
+				<p class="text-small text-ink-3">
 					Nama perusahaan, telepon dan kota diambil dari
 					<a href={resolve('settings/company')} class="font-bold text-accent-ink hover:underline"
 						>Pengaturan → Profil perusahaan</a

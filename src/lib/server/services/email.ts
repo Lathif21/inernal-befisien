@@ -14,6 +14,7 @@ import {
 	replySubject,
 	snippetOf,
 	type Address,
+	type EmailBrand,
 	type Signature
 } from '../../email';
 import { phoneDisplay } from '../../format';
@@ -239,6 +240,8 @@ export type SendInput = {
 export type SendDeps = {
 	/** "Befisien Technologies <info@befisien.com>" */
 	from: Address;
+	/** Logo, tagline, services and profiles in the signature */
+	brand: EmailBrand;
 	send: (mail: OutgoingMail) => Promise<string>;
 };
 
@@ -260,7 +263,7 @@ async function lastMessage(db: DbOrTx, threadId: string) {
 export async function emailSignature(
 	db: DbOrTx,
 	userId: string,
-	from: Address
+	{ from, brand }: Pick<SendDeps, 'from' | 'brand'>
 ): Promise<Signature> {
 	const [[u], company] = await Promise.all([
 		db.select({ name: user.name }).from(user).where(eq(user.id, userId)),
@@ -274,7 +277,8 @@ export async function emailSignature(
 		phone: !company.isExample && company.phone ? phoneDisplay(company.phone) : null,
 		email: from.email,
 		website: from.email.split('@')[1] ?? null,
-		city: !company.isExample && company.city ? company.city : null
+		city: !company.isExample && company.city ? company.city : null,
+		brand
 	};
 }
 
@@ -296,7 +300,7 @@ export async function sendEmailMessage(
 	if (!subject) throw new ServiceError('Isi subjek email.', 'subject');
 	const { text, html } = composeEmail({
 		body: input.body,
-		signature: await emailSignature(db, userId, deps.from),
+		signature: await emailSignature(db, userId, deps),
 		parent: parent
 			? {
 					from: formatAddress({ name: parent.fromName, email: parent.fromEmail }),

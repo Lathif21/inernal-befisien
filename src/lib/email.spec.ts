@@ -11,6 +11,7 @@ import {
 	parseMessageIds,
 	replyReferences,
 	replySubject,
+	signatureHtml,
 	signatureText,
 	snippetOf,
 	textToHtml
@@ -94,8 +95,29 @@ describe('bodies', () => {
 		phone: '+62 822-3456-7461',
 		email: 'info@befisien.com',
 		website: 'befisien.com',
-		city: 'Surabaya'
+		city: 'Surabaya',
+		brand: {
+			logoUrl: 'https://crm.example.id/email/befisien-mark.png',
+			wordmark: ['BEFISIEN', 'TECHNOLOGIES'] as [string, string],
+			tagline: 'Tingkatkan Efisiensi dan Akselerasi Bisnis Anda',
+			services: ['AI Agent', 'Dashboard & Aplikasi'],
+			links: [{ label: 'LinkedIn', url: 'https://www.linkedin.com/in/befisien' }]
+		}
 	};
+
+	it('builds the signature card with the logo, contacts, tagline, services and profiles', () => {
+		const html = signatureHtml(signature);
+		expect(html).toContain('src="https://crm.example.id/email/befisien-mark.png"');
+		expect(html).toContain('>BEFISIEN</div>');
+		expect(html).toContain('href="tel:+6282234567461"');
+		expect(html).toContain('href="mailto:info@befisien.com"');
+		expect(html).toContain('Dashboard &amp; Aplikasi');
+		expect(html).toContain('href="https://www.linkedin.com/in/befisien"');
+		// Without a public app URL the logo is left out; the wordmark stays as text
+		const noLogo = signatureHtml({ ...signature, brand: { ...signature.brand, logoUrl: null } });
+		expect(noLogo).not.toContain('<img');
+		expect(noLogo).toContain('TECHNOLOGIES');
+	});
 
 	it('writes the signature as plain text, skipping what is unknown', () => {
 		expect(signatureText(signature).split('\n')).toEqual([
@@ -103,12 +125,18 @@ describe('bodies', () => {
 			'Lathif Dewantoro',
 			'Befisien Technologies',
 			'+62 822-3456-7461 · info@befisien.com · befisien.com',
-			'Surabaya'
+			'Surabaya',
+			'LinkedIn: https://www.linkedin.com/in/befisien'
 		]);
 		expect(
-			signatureText({ ...signature, name: null, phone: null, website: null, city: null }).split(
-				'\n'
-			)
+			signatureText({
+				...signature,
+				name: null,
+				phone: null,
+				website: null,
+				city: null,
+				brand: { ...signature.brand, links: [] }
+			}).split('\n')
 		).toEqual(['--', 'Befisien Technologies', 'info@befisien.com']);
 	});
 

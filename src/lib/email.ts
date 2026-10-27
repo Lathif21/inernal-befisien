@@ -136,6 +136,17 @@ export function replyReferences(parent: { messageId: string | null; references: 
 	return [...new Set(ids)];
 }
 
+/** The look of the company in every email (befisien.com): logo, tagline, services, profiles */
+export type EmailBrand = {
+	/** Public URL of the logo mark PNG (an SVG is not shown by Gmail or Outlook) */
+	logoUrl: string | null;
+	/** "BEFISIEN" / "TECHNOLOGIES", stacked next to the mark like the website header */
+	wordmark: [string, string];
+	tagline: string;
+	services: string[];
+	links: { label: string; url: string }[];
+};
+
 export type Signature = {
 	/** The person who writes; left out when it is the company name */
 	name: string | null;
@@ -145,12 +156,14 @@ export type Signature = {
 	/** "befisien.com", linked as https:// */
 	website: string | null;
 	city: string | null;
+	brand: EmailBrand;
 };
 
 /** The signature as plain text, after the usual "--" line */
 export function signatureText(s: Signature) {
 	const contact = [s.phone, s.email, s.website].filter(Boolean).join(' · ');
-	return ['--', s.name, s.company, contact, s.city].filter(Boolean).join('\n');
+	const links = s.brand.links.map((l) => `${l.label}: ${l.url}`).join(' · ');
+	return ['--', s.name, s.company, contact, s.city, links].filter(Boolean).join('\n');
 }
 
 export type ReplyParent = { from: string; sentAt: Date; text: string };
@@ -168,11 +181,15 @@ const escapeHtml = (s: string) =>
 	s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 // Email clients ignore stylesheets and CSS variables, so the email carries inline colours: the
-// values of navy / ink-2 / accent / line from docs/design-system/tokens.json
+// values of navy / ink-2 / ink-3 / accent / sky / tint-2 / line from docs/design-system/tokens.json
 const INK = '#0B1840';
 const INK_2 = '#3E4C75';
+const INK_3 = '#5E6A8E';
 const ACCENT = '#1F5BEA';
+const SKY = '#9FD4FF';
+const TINT_2 = '#EEF3FF';
 const LINE = '#DCE4F5';
+const FONT = "'Plus Jakarta Sans',Arial,Helvetica,sans-serif";
 
 /** Plain text as HTML blocks: paragraphs, line breaks, `>` lines as a blockquote */
 function blocks(text: string) {
@@ -213,23 +230,65 @@ export function textToHtml(text: string) {
 	return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:${INK}">${blocks(text)}</div>`;
 }
 
-function signatureHtml(s: Signature) {
-	const link = (href: string, label: string) =>
-		`<a href="${escapeHtml(href)}" style="color:${ACCENT};text-decoration:none">${escapeHtml(label)}</a>`;
-	const contact = [
-		s.phone && escapeHtml(s.phone),
-		link(`mailto:${s.email}`, s.email),
-		s.website && link(`https://${s.website}`, s.website)
-	].filter(Boolean);
-	const row = (html: string, style: string) => `<div style="${style}">${html}</div>`;
+/**
+ * The signature card, in tables with inline styles so Gmail and Outlook keep the layout: the logo
+ * and wordmark beside the sender and contacts, then a navy band with the tagline, the services and
+ * the company's profiles. With images blocked the wordmark is still text.
+ */
+export function signatureHtml(s: Signature) {
+	const e = escapeHtml;
+	const table = (style: string, rows: string) =>
+		`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;${style}">${rows}</table>`;
+	const link = (href: string, label: string, color = ACCENT) =>
+		`<a href="${e(href)}" style="color:${color};text-decoration:none">${e(label)}</a>`;
+	const contactRow = (label: string, value: string) =>
+		`<tr><td style="padding:1px 10px 1px 0;font-size:10px;font-weight:bold;letter-spacing:1px;color:${INK_3};vertical-align:top">${label}</td>` +
+		`<td style="padding:1px 0;font-size:12px;color:${INK_2};white-space:nowrap">${value}</td></tr>`;
+
+	const logo =
+		(s.brand.logoUrl
+			? `<td style="padding:0 10px 0 0;vertical-align:middle"><img src="${e(s.brand.logoUrl)}" width="30" height="40" alt="" style="display:block;border:0;width:30px;height:40px"></td>`
+			: '') +
+		`<td style="vertical-align:middle;white-space:nowrap">` +
+		`<div style="font-size:17px;line-height:18px;font-weight:800;letter-spacing:1px;color:${INK}">${e(s.brand.wordmark[0])}</div>` +
+		`<div style="font-size:9px;line-height:12px;font-weight:bold;letter-spacing:2.5px;color:${ACCENT};padding-top:2px">${e(s.brand.wordmark[1])}</div></td>`;
+
+	const person =
+		(s.name
+			? `<div style="font-size:15px;line-height:20px;font-weight:bold;color:${INK}">${e(s.name)}</div>`
+			: '') +
+		`<div style="font-size:12px;line-height:18px;font-weight:bold;color:${ACCENT};padding-bottom:6px">${e(s.company)}</div>` +
+		table(
+			'',
+			(s.phone
+				? contactRow('TELP', link(`tel:${s.phone.replace(/[^\d+]/g, '')}`, s.phone, INK_2))
+				: '') +
+				contactRow('EMAIL', link(`mailto:${s.email}`, s.email)) +
+				(s.website ? contactRow('WEB', link(`https://${s.website}`, s.website)) : '') +
+				(s.city ? contactRow('KOTA', e(s.city)) : '')
+		);
+
+	const band =
+		`<tr><td colspan="3" bgcolor="${INK}" style="background:${INK};padding:10px 16px;border-radius:0 0 10px 10px">` +
+		`<div style="font-size:12px;line-height:17px;font-weight:bold;color:#FFFFFF">${e(s.brand.tagline)}</div>` +
+		(s.brand.services.length
+			? `<div style="font-size:11px;line-height:16px;color:${SKY};padding-top:3px">${s.brand.services.map(e).join(' &nbsp;&middot;&nbsp; ')}</div>`
+			: '') +
+		(s.brand.links.length
+			? `<div style="font-size:11px;line-height:16px;padding-top:6px">${s.brand.links.map((l) => link(l.url, l.label, '#FFFFFF')).join(`<span style="color:${SKY}"> &nbsp;|&nbsp; </span>`)}</div>`
+			: '') +
+		`</td></tr>`;
+
 	return (
-		`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 16px;border-collapse:collapse"><tr>` +
-		`<td style="border-left:3px solid ${ACCENT};padding:2px 0 2px 12px;font-family:Arial,Helvetica,sans-serif">` +
-		(s.name ? row(escapeHtml(s.name), `font-size:14px;font-weight:bold;color:${INK}`) : '') +
-		row(escapeHtml(s.company), `font-size:13px;font-weight:bold;color:${ACCENT}`) +
-		row(contact.join(' &middot; '), `font-size:12px;color:${INK_2};padding-top:4px`) +
-		(s.city ? row(escapeHtml(s.city), `font-size:12px;color:${INK_2}`) : '') +
-		`</td></tr></table>`
+		`<div style="margin:24px 0 16px;font-family:${FONT}">` +
+		table(
+			`width:100%;max-width:520px;background:${TINT_2};border:1px solid ${LINE};border-radius:10px`,
+			`<tr><td style="padding:16px 16px 14px;vertical-align:middle;white-space:nowrap">${table('', `<tr>${logo}</tr>`)}</td>` +
+				`<td style="padding:16px 0;vertical-align:middle"><div style="width:2px;height:64px;background:${ACCENT};font-size:0;line-height:0">&nbsp;</div></td>` +
+				`<td style="padding:14px 16px;vertical-align:middle;font-family:${FONT}">${person}</td></tr>` +
+				band
+		) +
+		`</div>`
 	);
 }
 

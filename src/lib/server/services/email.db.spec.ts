@@ -82,6 +82,13 @@ function fakeSender() {
 		sent,
 		deps: {
 			from: inbox,
+			brand: {
+				logoUrl: null,
+				wordmark: ['BEFISIEN', 'TECHNOLOGIES'] as [string, string],
+				tagline: 'Tagline uji',
+				services: [],
+				links: []
+			},
 			send: async (mail: OutgoingMail) => {
 				// Same idempotency key → same Resend id, like the real API
 				const key = mail.idempotencyKey ?? String(sent.length);

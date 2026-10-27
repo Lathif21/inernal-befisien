@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { newText } from '#lib/email.ts';
 
 	type Props = {
@@ -10,10 +11,14 @@
 
 	let showImages = $state(false);
 
-	// Remote images can track when an email is opened, so they wait for "Tampilkan gambar"
-	const hasRemote = $derived(
-		!!html && /(<img[^>]+src\s*=\s*["']?https?:|url\(\s*["']?https?:)/i.test(html)
-	);
+	// Remote images can track when an email is opened, so they wait for "Tampilkan gambar". Images
+	// from the CRM itself (the logo in our signature) are not remote and always load ('self').
+	const hasRemote = $derived.by(() => {
+		if (!html) return false;
+		const own = `${page.url.origin}/`;
+		const urls = html.matchAll(/(?:<img[^>]+src\s*=\s*|url\(\s*)["']?(https?:[^"')\s>]+)/gi);
+		return [...urls].some((m) => !m[1].startsWith(own));
+	});
 
 	/**
 	 * The email's own HTML in a sandboxed frame: no scripts, no forms, links open in a new tab, and a
@@ -22,7 +27,7 @@
 	 */
 	const doc = $derived.by(() => {
 		const remote = showImages ? ' https: http:' : '';
-		const csp = `default-src 'none'; img-src data: cid:${remote}; style-src 'unsafe-inline'${remote}; font-src data:${remote}`;
+		const csp = `default-src 'none'; img-src 'self' data: cid:${remote}; style-src 'unsafe-inline'${remote}; font-src data:${remote}`;
 		return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="color-scheme" content="light"><base target="_blank"><style>html{background:white;color:black}body{margin:0;padding:4px 2px;font-family:system-ui,sans-serif;font-size:14px;line-height:1.5;overflow-wrap:anywhere}img{max-width:100%;height:auto}pre{white-space:pre-wrap}table{max-width:100%}</style></head><body>${html ?? ''}</body></html>`;
 	});
 
