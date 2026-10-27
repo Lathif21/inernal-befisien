@@ -1,4 +1,4 @@
-// Kotak Masuk forms (P3-08): write / reply, and link a thread to a client.
+// Email page forms (P3-08): write / reply, and link a thread to a client.
 import { z } from 'zod';
 import { parseAddressList } from '../email';
 

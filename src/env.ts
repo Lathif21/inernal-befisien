@@ -31,7 +31,7 @@ export const variables = defineEnvVars({
 	},
 	RESEND_API_KEY: {
 		description:
-			'Resend key for app email; full access, because Kotak Masuk reads received email (P3-08)',
+			'Resend key for app email; full access, because the Email page reads received email (P3-08)',
 		schema: optional
 	},
 	SUMOPOD_API_KEY: {
@@ -72,7 +72,7 @@ export const variables = defineEnvVars({
 	},
 	INBOX_FROM: {
 		description:
-			'Sender of emails written in Kotak Masuk; default "Befisien Technologies <info@befisien.com>"',
+			'Sender of emails written in the CRM (Email page); default "Befisien Technologies <info@befisien.com>"',
 		schema: optional
 	},
 	MAIL_FROM: {

@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { emailLinkSchema } from '#lib/schemas/email.ts';
+import { signatureText } from '#lib/email.ts';
 import { db } from '#lib/server/db/index.ts';
 import { sendEmailAction } from '#lib/server/email-actions.ts';
 import { inboxFrom, resendKey } from '#lib/server/email-config.ts';
@@ -10,6 +11,7 @@ import { getReceivedAttachment } from '#lib/server/notify/resend-inbound.ts';
 import { listDealClients } from '#lib/server/services/deals.ts';
 import {
 	attachmentSource,
+	emailSignature,
 	getThread,
 	linkThread,
 	markThread,
@@ -24,9 +26,12 @@ function threadIdOr404(raw: string) {
 }
 
 export const load: PageServerLoad = async ({ params, locals }) => {
-	requireUser(locals);
+	const user = requireUser(locals);
 	const threadId = threadIdOr404(params.id);
-	const thread = await getThread(db, threadId);
+	const [thread, signature] = await Promise.all([
+		getThread(db, threadId),
+		emailSignature(db, user.id, inboxFrom)
+	]);
 	if (!thread) error(404, 'Email tidak ditemukan.');
 	// Opening a thread reads it; the page refreshes the sidebar badge afterwards
 	const wasUnread = thread.messages.some((m) => m.direction === 'in' && !m.readAt);
@@ -35,6 +40,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		thread,
 		wasUnread,
 		reply: replyDefaults(thread.messages, inboxFrom.email),
+		signature: signatureText(signature),
 		clients: thread.client ? [] : await listDealClients(db)
 	};
 };

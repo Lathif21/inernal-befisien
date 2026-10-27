@@ -191,6 +191,13 @@ describe.skipIf(!isDevDb)('email inbox service (dev database)', { timeout: 30_00
 			expect(sent[0].headers?.['In-Reply-To']).toBe(first.messageId);
 			expect(sent[0].headers?.References).toBe(first.messageId);
 			expect(sent[0].text).toContain('> Halo, kami tertarik');
+			// Signature between the message and the quote; the stored copy keeps the HTML
+			const sig = sent[0].text.indexOf('\n--\n');
+			expect(sig).toBeGreaterThan(0);
+			expect(sig).toBeLessThan(sent[0].text.indexOf('> Halo'));
+			expect(sent[0].text).toContain('info@befisien.com · befisien.com');
+			const [stored] = await tx.select().from(emailMessage).where(eq(emailMessage.id, reply.id));
+			expect(stored.html).toContain('href="mailto:info@befisien.com"');
 			expect(reply.threadId).toBe(a.id);
 
 			// A new email from the CRM: the client's reply points at a Message-ID Resend replaced

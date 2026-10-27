@@ -1,21 +1,22 @@
-// Email inbox (P3-08): store mail from Resend Inbound, thread it, match it to a client, send
+// Email (P3-08, page /inbox): store mail from Resend Inbound, thread it, match it to a client, send
 // replies. Relative imports only: services are shared with Trigger.dev tasks.
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
+	composeEmail,
 	formatAddress,
 	headerValue,
 	htmlToText,
 	isBulk,
 	parseAddress,
 	parseMessageIds,
-	quoteReply,
 	replyReferences,
 	replySubject,
 	snippetOf,
-	textToHtml,
-	type Address
+	type Address,
+	type Signature
 } from '../../email';
+import { phoneDisplay } from '../../format';
 import { contactSchema } from '../../schemas/contact';
 import type { DbOrTx } from '../db/client';
 import { client, contact, emailMessage, user, type EmailAttachment } from '../db/schema/index';
@@ -23,6 +24,7 @@ import type { OutgoingMail } from '../notify/email';
 import type { ReceivedEmail } from '../notify/resend-inbound';
 import { escapeHtml } from '../notify/telegram';
 import { logActivity } from './activity';
+import { getCompanyProfile } from './company';
 import { saveContact } from './contacts';
 import { ServiceError } from './errors';
 
@@ -251,6 +253,31 @@ async function lastMessage(db: DbOrTx, threadId: string) {
 	return m ?? null;
 }
 
+/**
+ * The signature under every email from the CRM: the writer, then the company from Pengaturan →
+ * Profil perusahaan. Example values (profile not saved yet) are left out, never sent to a client.
+ */
+export async function emailSignature(
+	db: DbOrTx,
+	userId: string,
+	from: Address
+): Promise<Signature> {
+	const [[u], company] = await Promise.all([
+		db.select({ name: user.name }).from(user).where(eq(user.id, userId)),
+		getCompanyProfile(db)
+	]);
+	const companyName = company.isExample ? (from.name ?? 'Befisien') : company.name;
+	const name = u?.name?.trim() || null;
+	return {
+		name: name && name.toLowerCase() !== companyName.toLowerCase() ? name : null,
+		company: companyName,
+		phone: !company.isExample && company.phone ? phoneDisplay(company.phone) : null,
+		email: from.email,
+		website: from.email.split('@')[1] ?? null,
+		city: !company.isExample && company.city ? company.city : null
+	};
+}
+
 /** Send an email or a threaded reply through Resend, then store it and log it on the timeline */
 export async function sendEmailMessage(
 	db: DbOrTx,
@@ -267,13 +294,17 @@ export async function sendEmailMessage(
 		? input.subject.trim() || replySubject(parent.subject)
 		: input.subject.trim();
 	if (!subject) throw new ServiceError('Isi subjek email.', 'subject');
-	const text = parent
-		? quoteReply(input.body, {
-				from: formatAddress({ name: parent.fromName, email: parent.fromEmail }),
-				sentAt: parent.sentAt,
-				text: parent.text ?? (parent.html ? htmlToText(parent.html) : '')
-			})
-		: input.body.trim();
+	const { text, html } = composeEmail({
+		body: input.body,
+		signature: await emailSignature(db, userId, deps.from),
+		parent: parent
+			? {
+					from: formatAddress({ name: parent.fromName, email: parent.fromEmail }),
+					sentAt: parent.sentAt,
+					text: parent.text ?? (parent.html ? htmlToText(parent.html) : '')
+				}
+			: undefined
+	});
 	const domain = deps.from.email.split('@')[1];
 	const messageId = `<${randomUUID()}@${domain}>`;
 	const references = parent ? replyReferences(parent) : [];
@@ -288,7 +319,7 @@ export async function sendEmailMessage(
 		cc,
 		subject,
 		text,
-		html: textToHtml(text),
+		html,
 		headers,
 		idempotencyKey: `email-${input.key}`
 	});
@@ -328,6 +359,7 @@ export async function sendEmailMessage(
 			cc,
 			subject,
 			text,
+			html,
 			snippet,
 			clientId,
 			userId,
@@ -666,6 +698,6 @@ export function emailAlertTelegram(
 	];
 	if (m.snippet) lines.push(escapeHtml(m.snippet));
 	if (m.attachments.length) lines.push(`<i>${m.attachments.length} lampiran</i>`);
-	lines.push('', `<a href="${escapeHtml(ctx.url)}">Buka di Kotak Masuk</a>`);
+	lines.push('', `<a href="${escapeHtml(ctx.url)}">Buka email</a>`);
 	return lines.join('\n');
 }

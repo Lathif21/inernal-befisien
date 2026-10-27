@@ -1,8 +1,10 @@
 import { z } from 'zod';
+import { signatureText } from '#lib/email.ts';
 import { db } from '#lib/server/db/index.ts';
 import { sendEmailAction } from '#lib/server/email-actions.ts';
+import { inboxFrom } from '#lib/server/email-config.ts';
 import { requireUser } from '#lib/server/guards.ts';
-import { INBOX_FILTERS, listThreads } from '#lib/server/services/email.ts';
+import { emailSignature, INBOX_FILTERS, listThreads } from '#lib/server/services/email.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 const params = z.object({
@@ -14,10 +16,13 @@ const params = z.object({
 });
 
 export const load: PageServerLoad = async ({ url, locals }) => {
-	requireUser(locals);
+	const user = requireUser(locals);
 	const p = params.parse(Object.fromEntries(url.searchParams));
-	const list = await listThreads(db, { filter: p.filter, q: p.q || undefined, page: p.page });
-	return { list, params: p };
+	const [list, signature] = await Promise.all([
+		listThreads(db, { filter: p.filter, q: p.q || undefined, page: p.page }),
+		emailSignature(db, user.id, inboxFrom)
+	]);
+	return { list, params: p, signature: signatureText(signature) };
 };
 
 export const actions: Actions = { send: sendEmailAction };

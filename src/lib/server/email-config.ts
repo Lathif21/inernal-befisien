@@ -1,4 +1,4 @@
-// Kotak Masuk (P3-08) wired to the app's env vars: who the CRM sends as, and how.
+// The Email page (P3-08) wired to the app's env vars: who the CRM sends as, and how.
 import { INBOX_FROM, RESEND_API_KEY } from '$app/env/private';
 import { formatAddress, parseAddress } from '#lib/email.ts';
 import { sendEmail } from '#lib/server/notify/email.ts';

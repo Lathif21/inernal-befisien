@@ -56,7 +56,7 @@
 		system: 'bg-tint-2 text-ink-3'
 	};
 
-	/** The Kotak Masuk thread of an email entry */
+	/** The Email page thread of an email entry */
 	function threadOf(e: Entry) {
 		const id = (e.meta as { threadId?: unknown } | null | undefined)?.threadId;
 		return e.type === 'email' && typeof id === 'string' ? id : null;

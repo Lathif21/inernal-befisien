@@ -59,7 +59,7 @@
 	}
 </script>
 
-<Topbar title="Kotak Masuk">
+<Topbar title="Email">
 	{#snippet actions()}
 		<button type="button" class="bf-btn bf-btn--primary" onclick={() => (composing = true)}>
 			<PenLine size={18} strokeWidth={2} />
@@ -200,6 +200,7 @@
 <ComposeDrawer
 	bind:open={composing}
 	to={data.params.to ?? ''}
+	signature={data.signature}
 	onsent={async (threadId) => {
 		await invalidateAll();
 		await opened(threadId);

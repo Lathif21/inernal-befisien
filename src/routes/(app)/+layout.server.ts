@@ -8,7 +8,7 @@ import type { LayoutServerLoad } from './$types';
 // Guards every page in (app). Form actions still call requireUser() themselves (CLAUDE.md).
 export const load: LayoutServerLoad = async ({ locals, cookies, depends }) => {
 	const user = requireUser(locals);
-	// A thread page refreshes the Kotak Masuk badge after it marked the thread read
+	// A thread page refreshes the Email badge after it marked the thread read
 	depends('app:inbox');
 	const [strategyCount, inboxCount] = await Promise.all([
 		attentionCount(db, user.id),
@@ -19,7 +19,7 @@ export const load: LayoutServerLoad = async ({ locals, cookies, depends }) => {
 		sidebar: sidebarMode(cookies.get(SIDEBAR_COOKIE)),
 		// Red badge on "Strategi": late + due-today steps assigned to this user
 		strategyCount,
-		// Badge on "Kotak Masuk": threads with an unread incoming email (P3-08)
+		// Badge on "Email": threads with an unread incoming email (P3-08)
 		inboxCount
 	};
 };

@@ -61,7 +61,7 @@
 	<div class="flex flex-wrap items-center gap-3">
 		<a href={resolve('inbox')} class="bf-btn bf-btn--ghost bf-btn--sm">
 			<ArrowLeft size={16} strokeWidth={2} />
-			Kotak Masuk
+			Email
 		</a>
 		<span class="flex-1"></span>
 		{#if thread.client}
@@ -197,5 +197,6 @@
 	cc={data.reply.cc}
 	subject={data.reply.subject}
 	description={replyTo ? `Membalas ${replyTo}` : undefined}
+	signature={data.signature}
 	onsent={() => invalidateAll()}
 />

@@ -1,4 +1,4 @@
-// Form action shared by Kotak Masuk (new email) and a thread (reply), P3-08.
+// Form action shared by the Email page (new email) and a thread (reply), P3-08.
 import { fail, type RequestEvent } from '@sveltejs/kit';
 import { emailSendSchema } from '#lib/schemas/email.ts';
 import { db } from '#lib/server/db/index.ts';

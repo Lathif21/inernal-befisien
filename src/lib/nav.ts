@@ -35,7 +35,7 @@ export type NavItem = {
 	phase?: 2;
 	/** Rendered at the bottom of the sidebar */
 	bottom?: boolean;
-	/** Strategi carries the late + due-today badge, Kotak Masuk the unread threads */
+	/** Strategi carries the late + due-today badge, Email the unread threads */
 	badge?: 'strategy' | 'inbox';
 };
 
@@ -47,7 +47,7 @@ export const navItems: NavItem[] = [
 	{ label: 'Pipeline Sales', href: 'pipeline', icon: SquareKanban },
 	{ label: 'Proyek', href: 'projects', icon: FolderKanban },
 	{ label: 'Klien', href: 'clients', icon: Users },
-	{ label: 'Kotak Masuk', href: 'inbox', icon: Inbox, badge: 'inbox' },
+	{ label: 'Email', href: 'inbox', icon: Inbox, badge: 'inbox' },
 	{ label: 'Keuangan', href: 'finance', icon: Wallet },
 	{ label: 'Invoice', href: 'invoices', icon: FileText },
 	{ label: 'Pengaturan', href: 'settings', icon: Settings, bottom: true }

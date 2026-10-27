@@ -136,32 +136,58 @@ export function replyReferences(parent: { messageId: string | null; references: 
 	return [...new Set(ids)];
 }
 
-/** The reply text with the earlier message quoted under it */
-export function quoteReply(body: string, parent: { from: string; sentAt: Date; text: string }) {
-	const quoted = parent.text
+export type Signature = {
+	/** The person who writes; left out when it is the company name */
+	name: string | null;
+	company: string;
+	phone: string | null;
+	email: string;
+	/** "befisien.com", linked as https:// */
+	website: string | null;
+	city: string | null;
+};
+
+/** The signature as plain text, after the usual "--" line */
+export function signatureText(s: Signature) {
+	const contact = [s.phone, s.email, s.website].filter(Boolean).join(' · ');
+	return ['--', s.name, s.company, contact, s.city].filter(Boolean).join('\n');
+}
+
+export type ReplyParent = { from: string; sentAt: Date; text: string };
+
+const quoteIntro = (parent: ReplyParent) =>
+	`Pada ${dateID(parent.sentAt)} ${dateID(parent.sentAt, 'time')} WIB, ${parent.from} menulis:`;
+
+const quoteLines = (text: string) =>
+	text
 		.split('\n')
 		.map((l) => `> ${l}`.trimEnd())
 		.join('\n');
-	const at = `${dateID(parent.sentAt)} ${dateID(parent.sentAt, 'time')} WIB`;
-	return `${body.trim()}\n\nPada ${at}, ${parent.from} menulis:\n${quoted}`;
-}
 
 const escapeHtml = (s: string) =>
 	s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-/** Plain text as simple HTML: paragraphs, line breaks, `>` lines as a blockquote */
-export function textToHtml(text: string) {
-	const blocks: string[] = [];
+// Email clients ignore stylesheets and CSS variables, so the email carries inline colours: the
+// values of navy / ink-2 / accent / line from docs/design-system/tokens.json
+const INK = '#0B1840';
+const INK_2 = '#3E4C75';
+const ACCENT = '#1F5BEA';
+const LINE = '#DCE4F5';
+
+/** Plain text as HTML blocks: paragraphs, line breaks, `>` lines as a blockquote */
+function blocks(text: string) {
+	const out: string[] = [];
 	let quote: string[] = [];
 	let para: string[] = [];
 	const flushPara = () => {
-		if (para.length) blocks.push(`<p>${para.map(escapeHtml).join('<br>')}</p>`);
+		if (para.length)
+			out.push(`<p style="margin:0 0 12px">${para.map(escapeHtml).join('<br>')}</p>`);
 		para = [];
 	};
 	const flushQuote = () => {
 		if (quote.length)
-			blocks.push(
-				`<blockquote style="margin:0 0 0 .8ex;border-left:2px solid #ccc;padding-left:1ex;color:#555">${quote.map(escapeHtml).join('<br>')}</blockquote>`
+			out.push(
+				`<blockquote style="margin:0 0 12px;border-left:2px solid ${LINE};padding-left:12px;color:${INK_2}">${quote.map(escapeHtml).join('<br>')}</blockquote>`
 			);
 		quote = [];
 	};
@@ -179,5 +205,52 @@ export function textToHtml(text: string) {
 	}
 	flushPara();
 	flushQuote();
-	return `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5">${blocks.join('')}</div>`;
+	return out.join('');
+}
+
+/** Plain text as simple HTML (paragraphs, line breaks, quotes) */
+export function textToHtml(text: string) {
+	return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:${INK}">${blocks(text)}</div>`;
+}
+
+function signatureHtml(s: Signature) {
+	const link = (href: string, label: string) =>
+		`<a href="${escapeHtml(href)}" style="color:${ACCENT};text-decoration:none">${escapeHtml(label)}</a>`;
+	const contact = [
+		s.phone && escapeHtml(s.phone),
+		link(`mailto:${s.email}`, s.email),
+		s.website && link(`https://${s.website}`, s.website)
+	].filter(Boolean);
+	const row = (html: string, style: string) => `<div style="${style}">${html}</div>`;
+	return (
+		`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 16px;border-collapse:collapse"><tr>` +
+		`<td style="border-left:3px solid ${ACCENT};padding:2px 0 2px 12px;font-family:Arial,Helvetica,sans-serif">` +
+		(s.name ? row(escapeHtml(s.name), `font-size:14px;font-weight:bold;color:${INK}`) : '') +
+		row(escapeHtml(s.company), `font-size:13px;font-weight:bold;color:${ACCENT}`) +
+		row(contact.join(' &middot; '), `font-size:12px;color:${INK_2};padding-top:4px`) +
+		(s.city ? row(escapeHtml(s.city), `font-size:12px;color:${INK_2}`) : '') +
+		`</td></tr></table>`
+	);
+}
+
+/**
+ * The email as sent: the message, the signature, and for a reply the earlier message quoted
+ * under it (like Gmail). `text` is also what the thread stores and shows.
+ */
+export function composeEmail(input: { body: string; signature: Signature; parent?: ReplyParent }) {
+	const body = input.body.trim();
+	const parts = [body, signatureText(input.signature)];
+	if (input.parent) parts.push(`${quoteIntro(input.parent)}\n${quoteLines(input.parent.text)}`);
+	const text = parts.join('\n\n');
+
+	const quote = input.parent
+		? `<div style="color:${INK_2};font-size:13px;margin:0 0 8px">${escapeHtml(quoteIntro(input.parent))}</div>${blocks(quoteLines(input.parent.text))}`
+		: '';
+	const html =
+		`<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:${INK};max-width:640px">` +
+		blocks(body) +
+		signatureHtml(input.signature) +
+		quote +
+		`</div>`;
+	return { text, html };
 }

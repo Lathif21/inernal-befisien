@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	composeEmail,
 	formatAddress,
 	headerValue,
 	htmlToText,
@@ -8,9 +9,9 @@ import {
 	parseAddress,
 	parseAddressList,
 	parseMessageIds,
-	quoteReply,
 	replyReferences,
 	replySubject,
+	signatureText,
 	snippetOf,
 	textToHtml
 } from './email';
@@ -87,17 +88,63 @@ describe('bodies', () => {
 		]);
 	});
 
-	it('quotes the parent under the reply and renders it as HTML', () => {
-		const text = quoteReply('Terima kasih.', {
-			from: 'Ani <ani@x.id>',
-			sentAt: new Date('2026-10-27T03:00:00Z'),
-			text: 'Bisa <meeting>?'
+	const signature = {
+		name: 'Lathif Dewantoro',
+		company: 'Befisien Technologies',
+		phone: '+62 822-3456-7461',
+		email: 'info@befisien.com',
+		website: 'befisien.com',
+		city: 'Surabaya'
+	};
+
+	it('writes the signature as plain text, skipping what is unknown', () => {
+		expect(signatureText(signature).split('\n')).toEqual([
+			'--',
+			'Lathif Dewantoro',
+			'Befisien Technologies',
+			'+62 822-3456-7461 · info@befisien.com · befisien.com',
+			'Surabaya'
+		]);
+		expect(
+			signatureText({ ...signature, name: null, phone: null, website: null, city: null }).split(
+				'\n'
+			)
+		).toEqual(['--', 'Befisien Technologies', 'info@befisien.com']);
+	});
+
+	it('puts the message, then the signature, then the quoted parent', () => {
+		const { text, html } = composeEmail({
+			body: '  Terima kasih.  ',
+			signature,
+			parent: {
+				from: 'Ani <ani@x.id>',
+				sentAt: new Date('2026-10-27T03:00:00Z'),
+				text: 'Bisa <meeting>?'
+			}
 		});
-		expect(text).toContain('Terima kasih.\n\nPada 27 Okt 2026');
-		expect(text).toContain('Ani <ani@x.id> menulis:\n> Bisa <meeting>?');
-		const html = textToHtml(text);
-		expect(html).toContain('<p>Terima kasih.</p>');
-		expect(html).toContain('<blockquote');
+		expect(text).toBe(
+			`Terima kasih.
+
+${signatureText(signature)}
+
+Pada 27 Okt 2026 10:00 WIB, Ani <ani@x.id> menulis:
+> Bisa <meeting>?`
+		);
+		expect(html.indexOf('Terima kasih.')).toBeLessThan(html.indexOf('Befisien Technologies'));
+		expect(html.indexOf('Befisien Technologies')).toBeLessThan(html.indexOf('<blockquote'));
+		expect(html).toContain('href="mailto:info@befisien.com"');
+		expect(html).toContain('href="https://befisien.com"');
 		expect(html).toContain('Bisa &lt;meeting&gt;?');
+		expect(html).toContain('Ani &lt;ani@x.id&gt; menulis:');
+	});
+
+	it('sends a new email without a quote, and escapes the signature', () => {
+		const { text, html } = composeEmail({
+			body: 'Halo',
+			signature: { ...signature, company: 'PT <A&B>' }
+		});
+		expect(text).not.toContain('menulis:');
+		expect(html).toContain('PT &lt;A&amp;B&gt;');
+		expect(textToHtml('Halo\n> kutipan')).toContain('<blockquote');
 	});
 });
