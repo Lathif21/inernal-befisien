@@ -17,7 +17,11 @@ export async function sendEmailAction({ request, locals }: RequestEvent) {
 		const issue = parsed.error.issues[0];
 		return fail(400, { error: issue.message, field: String(issue.path[0] ?? '') });
 	}
-	const { threadId, ...input } = parsed.data;
+	const { threadId, forwardId, ...input } = parsed.data;
+	// One `forwardFiles` entry per original attachment ticked in the drawer
+	const forwardFiles = form
+		.getAll('forwardFiles')
+		.filter((v): v is string => typeof v === 'string' && v.length > 0 && v.length <= 100);
 	try {
 		const files = await Promise.all(
 			form
@@ -31,11 +35,19 @@ export async function sendEmailAction({ request, locals }: RequestEvent) {
 		);
 		const sent = await sendEmailMessage(
 			db,
-			{ ...input, threadId: threadId || undefined, files },
+			{
+				...input,
+				threadId: threadId || undefined,
+				files,
+				forward: forwardId ? { emailId: forwardId, attachmentIds: forwardFiles } : undefined
+			},
 			user.id,
 			sendDeps
 		);
-		return { done: 'Email terkirim.', threadId: sent.threadId };
+		return {
+			done: forwardId ? 'Email diteruskan.' : 'Email terkirim.',
+			threadId: sent.threadId
+		};
 	} catch (e) {
 		if (e instanceof ServiceError) return fail(400, { error: e.message, field: e.field ?? '' });
 		console.error('[email] send failed:', String(e));

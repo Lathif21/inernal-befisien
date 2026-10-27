@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
+	attachmentExpired,
 	composeEmail,
 	EMAIL_MAX_FILES,
 	EMAIL_UPLOAD_LIMIT,
@@ -22,6 +23,7 @@ import {
 	type EmailBrand,
 	type Signature
 } from '../../email';
+import { forwardHtml, forwardSubject, forwardText } from '../../email-forward';
 import { phoneDisplay } from '../../format';
 import { contactSchema } from '../../schemas/contact';
 import type { DbOrTx } from '../db/client';
@@ -155,8 +157,8 @@ async function threadClient(db: DbOrTx, threadId: string) {
 	return hit?.clientId ?? null;
 }
 
-const timelineBody = (direction: 'in' | 'out', subject: string, snippet: string) =>
-	`${direction === 'in' ? 'Email masuk' : 'Email terkirim'}: ${subject || '(tanpa subjek)'}${snippet ? `\n${snippet}` : ''}`;
+const timelineBody = (direction: 'in' | 'out' | 'forward', subject: string, snippet: string) =>
+	`${{ in: 'Email masuk', out: 'Email terkirim', forward: 'Email diteruskan' }[direction]}: ${subject || '(tanpa subjek)'}${snippet ? `\n${snippet}` : ''}`;
 
 /**
  * Store one received email (idempotent: the same Resend id or Message-ID is stored once). Returns
@@ -243,6 +245,23 @@ export type SendInput = {
 	/** From the form, so a double submit sends once (Resend Idempotency-Key) */
 	key: string;
 	files?: SendFile[];
+	/**
+	 * Forward this stored email under the message (a new conversation, no reply headers), with the
+	 * chosen ones of its attachments fetched again from Resend. The body may then be empty.
+	 */
+	forward?: { emailId: string; attachmentIds: string[] };
+};
+
+/** Resend refuses an email above 40 MB after base64; forwarded files stay well under that */
+export const FORWARD_FILES_LIMIT = 25 * 1024 * 1024;
+
+/** Where a stored attachment is at Resend, for fetching it again (forwarding) */
+export type AttachmentSource = {
+	direction: 'in' | 'out';
+	resendId: string;
+	attachment: EmailAttachment;
+	/** The how-manieth file with this name on its email (sent attachments are found by name) */
+	nth: number;
 };
 
 /** A file attached in the drawer */
@@ -283,7 +302,53 @@ export type SendDeps = {
 	/** Logo, tagline, services and profiles in the signature */
 	brand: EmailBrand;
 	send: (mail: OutgoingMail) => Promise<string>;
+	/** The bytes of a stored attachment, fetched from Resend (forwarding only) */
+	loadAttachment?: (source: AttachmentSource) => Promise<Uint8Array>;
 };
+
+/** The email to forward and the bytes of the attachments chosen to go with it */
+async function loadForward(db: DbOrTx, forward: NonNullable<SendInput['forward']>, deps: SendDeps) {
+	const [m] = await db.select().from(emailMessage).where(eq(emailMessage.id, forward.emailId));
+	if (!m) throw new ServiceError('Email yang diteruskan tidak ditemukan.');
+	const chosen = m.attachments.filter((a) => !a.inline && forward.attachmentIds.includes(a.id));
+	if (chosen.length && attachmentExpired(m.sentAt))
+		throw new ServiceError(
+			'Lampiran email ini sudah tidak tersedia di Resend. Teruskan tanpa lampiran.',
+			'forwardFiles'
+		);
+	const blocked = chosen.find((a) => isBlockedFile(a.filename));
+	if (blocked)
+		throw new ServiceError(
+			`${blocked.filename} tidak bisa diteruskan: file program ditolak layanan email.`,
+			'forwardFiles'
+		);
+	const size = chosen.reduce((s, a) => s + a.size, 0);
+	if (size > FORWARD_FILES_LIMIT)
+		throw new ServiceError(
+			`Lampiran yang diteruskan ${fileSize(size)}, maksimal ${fileSize(FORWARD_FILES_LIMIT)}. Kurangi lampiran.`,
+			'forwardFiles'
+		);
+	if (chosen.length && !deps.loadAttachment) throw new Error('loadAttachment is not configured');
+	const files: SendFile[] = await Promise.all(
+		chosen.map(async (a) => {
+			const nth = m.attachments.filter((b) => b.filename === a.filename).indexOf(a);
+			const data = await deps.loadAttachment!({
+				direction: m.direction,
+				resendId: m.resendId,
+				attachment: a,
+				nth
+			}).catch((e) => {
+				console.error('[email] forward attachment failed:', String(e));
+				throw new ServiceError(
+					`${a.filename} tidak bisa diambil dari Resend. Coba lagi, atau teruskan tanpa lampiran ini.`,
+					'forwardFiles'
+				);
+			});
+			return { filename: a.filename, contentType: a.contentType, data };
+		})
+	);
+	return { message: m, files };
+}
 
 /** The message a reply answers: the thread's last one */
 async function lastMessage(db: DbOrTx, threadId: string) {
@@ -338,16 +403,23 @@ export async function sendEmailMessage(
 	const files = (input.files ?? []).map((f) => ({ ...f, filename: fileName(f.filename) }));
 	checkFiles(input.body, files);
 	const body = cleanEmailHtml(input.body);
-	if (isEmptyBody(body)) throw new ServiceError('Tulis isi email.', 'body');
-	const parent = input.threadId ? await lastMessage(db, input.threadId) : null;
-	if (input.threadId && !parent) throw new ServiceError('Percakapan email tidak ditemukan.');
+	// A forward may go without a message of its own
+	const emptyBody = isEmptyBody(body);
+	if (emptyBody && !input.forward) throw new ServiceError('Tulis isi email.', 'body');
+	const forwarded = input.forward ? await loadForward(db, input.forward, deps) : null;
+	// A forward is a new conversation: it does not answer the thread it came from
+	const parent = input.threadId && !forwarded ? await lastMessage(db, input.threadId) : null;
+	if (input.threadId && !forwarded && !parent)
+		throw new ServiceError('Percakapan email tidak ditemukan.');
 
-	const subject = parent
-		? input.subject.trim() || replySubject(parent.subject)
-		: input.subject.trim();
+	const subject = forwarded
+		? input.subject.trim() || forwardSubject(forwarded.message.subject)
+		: parent
+			? input.subject.trim() || replySubject(parent.subject)
+			: input.subject.trim();
 	if (!subject) throw new ServiceError('Isi subjek email.', 'subject');
-	const { text, html } = composeEmail({
-		body,
+	const composed = composeEmail({
+		body: emptyBody ? '' : body,
 		signature: await emailSignature(db, userId, deps),
 		parent: parent
 			? {
@@ -357,6 +429,24 @@ export async function sendEmailMessage(
 				}
 			: undefined
 	});
+	let text = composed.text.trimStart();
+	let html = composed.html;
+	if (forwarded) {
+		const m = forwarded.message;
+		const original = {
+			from: formatAddress({ name: m.fromName, email: m.fromEmail }),
+			to: m.to,
+			cc: m.cc,
+			sentAt: m.sentAt,
+			subject: m.subject,
+			text: m.text ?? (m.html ? htmlToText(m.html) : ''),
+			html: m.html
+		};
+		text = `${text}\n\n${forwardText(original)}`;
+		html = `${html}${forwardHtml(original)}`;
+	}
+	// Forwarded files come from Resend, not from the browser: they don't count toward the upload limit
+	const allFiles = [...files, ...(forwarded?.files ?? [])];
 	const domain = deps.from.email.split('@')[1];
 	const messageId = `<${randomUUID()}@${domain}>`;
 	const references = parent ? replyReferences(parent) : [];
@@ -376,7 +466,7 @@ export async function sendEmailMessage(
 		headers,
 		idempotencyKey: `email-${input.key}`,
 		attachments: [
-			...files.map((f) => ({
+			...allFiles.map((f) => ({
 				filename: f.filename,
 				content: Buffer.from(f.data).toString('base64'),
 				contentType: f.contentType || undefined
@@ -384,7 +474,7 @@ export async function sendEmailMessage(
 			...inline.images
 		]
 	});
-	const attachments: EmailAttachment[] = files.map((f, i) => ({
+	const attachments: EmailAttachment[] = allFiles.map((f, i) => ({
 		id: `out-${i + 1}`,
 		filename: f.filename,
 		contentType: f.contentType || 'application/octet-stream',
@@ -398,12 +488,14 @@ export async function sendEmailMessage(
 			.from(emailMessage)
 			.where(eq(emailMessage.resendId, resendId));
 		// Same key twice: Resend sent it once and returned the same id
-		if (existing) return existing;
+		if (existing) return { ...existing, forwarded: !!forwarded };
 
 		const id = randomUUID();
 		const threadId = parent?.threadId ?? id;
+		// A forward stays with the client of the conversation it came from
 		const clientId =
 			(parent ? await threadClient(tx, threadId) : null) ??
+			(forwarded ? await threadClient(tx, forwarded.message.threadId) : null) ??
 			(
 				await contactByEmail(
 					tx,
@@ -411,7 +503,8 @@ export async function sendEmailMessage(
 				)
 			)?.clientId ??
 			null;
-		const snippet = snippetOf(htmlToText(body));
+		const snippet =
+			(emptyBody ? '' : snippetOf(htmlToText(body))) || (forwarded?.message.snippet ?? '');
 		const now = new Date();
 		await tx.insert(emailMessage).values({
 			id,
@@ -440,11 +533,16 @@ export async function sendEmailMessage(
 			await logActivity(tx, {
 				clientId,
 				type: 'email',
-				body: timelineBody('out', subject, snippet),
-				meta: { emailId: id, threadId, direction: 'out' },
+				body: timelineBody(forwarded ? 'forward' : 'out', subject, snippet),
+				meta: {
+					emailId: id,
+					threadId,
+					direction: 'out',
+					...(forwarded ? { forwardOf: forwarded.message.id } : {})
+				},
 				userId
 			});
-		return { id, threadId };
+		return { id, threadId, forwarded: !!forwarded };
 	});
 }
 

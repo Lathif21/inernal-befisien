@@ -29,6 +29,16 @@
 		description?: string;
 		/** The signature card added under the message (signatureHtml), shown as a preview */
 		signature?: string;
+		/**
+		 * Teruskan: this stored email goes under the message (which may stay empty), with the ticked
+		 * ones of its attachments. Sent as a new conversation, so `threadId` is not used.
+		 */
+		forward?: {
+			emailId: string;
+			attachments: { id: string; filename: string; size: number }[];
+			/** Resend no longer has the files (RESEND_RETENTION_DAYS) */
+			expired: boolean;
+		} | null;
 		/** After Resend accepted it; the page reloads or opens the thread */
 		onsent: (threadId: string) => Promise<void> | void;
 	};
@@ -41,10 +51,12 @@
 		subject = '',
 		description,
 		signature = '',
+		forward = null,
 		onsent
 	}: Props = $props();
 
-	const formId = $derived(`email-form-${threadId || 'new'}`);
+	const formId = $derived(forward ? 'email-form-forward' : `email-form-${threadId || 'new'}`);
+	const title = $derived(forward ? 'Teruskan email' : threadId ? 'Balas email' : 'Tulis email');
 	// One key per email written, so a double click or a retry after a timeout sends once
 	let key = $state(crypto.randomUUID());
 	let sending = $state(false);
@@ -85,7 +97,7 @@
 	const bodyLabelId = $derived(`${formId}-body-label`);
 </script>
 
-<Drawer bind:open title={threadId ? 'Balas email' : 'Tulis email'} {description}>
+<Drawer bind:open {title} {description}>
 	<form
 		id={formId}
 		method="post"
@@ -96,7 +108,8 @@
 		use:enhance={({ formData, cancel }) => {
 			error = null;
 			const body = editor?.getHTML() ?? '';
-			if (!body) {
+			// A forward may go without a message of its own
+			if (!body && !forward) {
 				error = { text: 'Tulis isi email.', field: 'body' };
 				editor?.focus();
 				return cancel();
@@ -132,10 +145,11 @@
 			};
 		}}
 	>
-		<input type="hidden" name="threadId" value={threadId} />
+		<input type="hidden" name="threadId" value={forward ? '' : threadId} />
 		<input type="hidden" name="key" value={key} />
+		{#if forward}<input type="hidden" name="forwardId" value={forward.emailId} />{/if}
 
-		{#if error && !['to', 'cc', 'subject', 'body', 'files'].includes(error.field)}
+		{#if error && !['to', 'cc', 'subject', 'body', 'files', 'forwardFiles'].includes(error.field)}
 			<p
 				role="alert"
 				class="rounded-control bg-danger-bg px-3.5 py-2.5 text-small font-bold text-danger"
@@ -170,7 +184,12 @@
 			>
 		{/if}
 
-		<Field label="Subjek" name="subject" required={!threadId} errors={fieldError('subject')}>
+		<Field
+			label="Subjek"
+			name="subject"
+			required={!threadId && !forward}
+			errors={fieldError('subject')}
+		>
 			{#snippet children(attrs)}
 				<input {...attrs} type="text" defaultValue={subject} maxlength="250" />
 			{/snippet}
@@ -178,7 +197,9 @@
 
 		<!-- bf-field markup by hand: the editor is a contenteditable, labelled by id -->
 		<div class="bf-field">
-			<span id={bodyLabelId}>Pesan<span class="text-danger" aria-hidden="true"> *</span></span>
+			<span id={bodyLabelId}
+				>Pesan{#if !forward}<span class="text-danger" aria-hidden="true"> *</span>{/if}</span
+			>
 			<RichTextEditor
 				bind:this={editor}
 				id="{formId}-body"
@@ -196,10 +217,45 @@
 			{:else}
 				<span id="{formId}-body-hint" class="bf-field__hint">
 					Tempel, seret atau sisipkan gambar langsung di dalam pesan.
-					{#if threadId}Email sebelumnya dikutip otomatis di bawah pesan Anda.{/if}
+					{#if forward}
+						Email yang diteruskan disertakan di bawah pesan Anda; pesan boleh dikosongkan.
+					{:else if threadId}Email sebelumnya dikutip otomatis di bawah pesan Anda.{/if}
 				</span>
 			{/if}
 		</div>
+
+		{#if forward?.attachments.length}
+			<fieldset class="flex flex-col gap-2">
+				<legend class="mb-2 text-small font-bold text-ink-2">Lampiran email asli</legend>
+				{#each forward.attachments as a (a.id)}
+					<label
+						class="flex items-center gap-2 rounded-control bg-tint-2 px-3 py-2 text-small {forward.expired
+							? 'opacity-60'
+							: ''}"
+					>
+						<input
+							type="checkbox"
+							name="forwardFiles"
+							value={a.id}
+							checked={!forward.expired}
+							disabled={forward.expired}
+						/>
+						<Paperclip size={14} strokeWidth={2} class="shrink-0 text-ink-3" />
+						<span class="min-w-0 flex-1 truncate font-bold text-ink">{a.filename}</span>
+						<span class="shrink-0 text-ink-3">{fileSize(a.size)}</span>
+					</label>
+				{/each}
+				{#if forward.expired}
+					<p class="text-small text-ink-3">
+						Lampiran ini sudah tidak tersedia: Resend menyimpan file {RESEND_RETENTION_DAYS} hari. Email
+						tetap bisa diteruskan tanpa lampiran.
+					</p>
+				{/if}
+				{#if fieldError('forwardFiles')}
+					<p role="alert" class="bf-field__error">{error?.text}</p>
+				{/if}
+			</fieldset>
+		{/if}
 
 		<div class="flex flex-col gap-2">
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1">

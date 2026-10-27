@@ -2,7 +2,12 @@
 import { BETTER_AUTH_URL, INBOX_FROM, RESEND_API_KEY } from '$app/env/private';
 import { formatAddress, parseAddress, type EmailBrand } from '#lib/email.ts';
 import { sendEmail } from '#lib/server/notify/email.ts';
-import type { SendDeps } from '#lib/server/services/email.ts';
+import {
+	getReceivedAttachment,
+	getSentAttachments,
+	pickSentAttachment
+} from '#lib/server/notify/resend-inbound.ts';
+import type { AttachmentSource, SendDeps } from '#lib/server/services/email.ts';
 
 const DEFAULT_FROM = 'Befisien <info@befisien.com>';
 
@@ -28,8 +33,30 @@ export const emailBrand: EmailBrand = {
 	]
 };
 
+/** Download links live on Resend's CDN (cdn.resend.app); nothing else is fetched */
+const RESEND_CDN = /^https:\/\/([a-z0-9-]+\.)*resend\.(app|com)$/;
+
+/** A stored attachment's bytes, from Resend's received or sent attachments (forwarding) */
+async function loadAttachment(source: AttachmentSource) {
+	const { attachment: a } = source;
+	const url =
+		source.direction === 'in'
+			? (await getReceivedAttachment(resendKey, source.resendId, a.id)).download_url
+			: pickSentAttachment(
+					await getSentAttachments(resendKey, source.resendId),
+					a.filename,
+					source.nth
+				)?.download_url;
+	if (!url) throw new Error(`attachment ${a.filename} not found at Resend`);
+	if (!RESEND_CDN.test(new URL(url).origin)) throw new Error(`unexpected download origin ${url}`);
+	const res = await fetch(url);
+	if (!res.ok) throw new Error(`download ${res.status}`);
+	return new Uint8Array(await res.arrayBuffer());
+}
+
 export const sendDeps: SendDeps = {
 	from: inboxFrom,
 	brand: emailBrand,
-	send: (mail) => sendEmail({ apiKey: resendKey, from: formatAddress(inboxFrom) }, mail)
+	send: (mail) => sendEmail({ apiKey: resendKey, from: formatAddress(inboxFrom) }, mail),
+	loadAttachment
 };

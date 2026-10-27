@@ -3,6 +3,7 @@
 	import { goto, invalidate, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+	import Forward from '@lucide/svelte/icons/forward';
 	import Link2 from '@lucide/svelte/icons/link-2';
 	import MailOpen from '@lucide/svelte/icons/mail-open';
 	import Paperclip from '@lucide/svelte/icons/paperclip';
@@ -18,6 +19,7 @@
 		parseAddress,
 		RESEND_RETENTION_DAYS
 	} from '#lib/email.ts';
+	import { forwardSubject } from '#lib/email-forward.ts';
 	import { refreshThenToast } from '#lib/enhance.ts';
 	import { dateID } from '#lib/format.ts';
 	import { toast } from '#lib/toast.ts';
@@ -29,6 +31,15 @@
 	const subject = $derived(thread.messages[0]?.subject || '(tanpa subjek)');
 	let replying = $state(false);
 	let linking = $state(false);
+	// Teruskan: the message being forwarded (its drawer is open while forwardOpen)
+	type Message = (typeof data.thread.messages)[number];
+	let forwarding = $state<Message | null>(null);
+	let forwardOpen = $state(false);
+
+	function startForward(m: Message) {
+		forwarding = m;
+		forwardOpen = true;
+	}
 
 	// The load marked the thread read; the sidebar badge was counted before that. Once per thread:
 	// the refreshed layout data would otherwise run this effect again, and again.
@@ -152,11 +163,22 @@
 							{#if m.cc.length}· Cc: {m.cc.map(label).join(', ')}{/if}
 						</p>
 					</div>
-					<time
-						class="shrink-0 font-mono text-[12px] font-medium text-ink-3"
-						datetime={new Date(m.sentAt).toISOString()}
-						>{dateID(m.sentAt)} · {dateID(m.sentAt, 'time')}</time
-					>
+					<div class="flex shrink-0 flex-col items-end gap-1">
+						<time
+							class="font-mono text-[12px] font-medium text-ink-3"
+							datetime={new Date(m.sentAt).toISOString()}
+							>{dateID(m.sentAt)} · {dateID(m.sentAt, 'time')}</time
+						>
+						<button
+							type="button"
+							class="bf-btn bf-btn--ghost bf-btn--sm"
+							aria-label="Teruskan email dari {sender}, {dateID(m.sentAt)}"
+							onclick={() => startForward(m)}
+						>
+							<Forward size={15} strokeWidth={2} />
+							Teruskan
+						</button>
+					</div>
 				</div>
 
 				<EmailBody html={m.html} text={m.text} />
@@ -214,3 +236,21 @@
 	signature={data.signature}
 	onsent={() => invalidateAll()}
 />
+
+{#if forwarding}
+	<ComposeDrawer
+		bind:open={forwardOpen}
+		subject={forwardSubject(forwarding.subject)}
+		description="Meneruskan email dari {addressLabel({
+			name: forwarding.fromName,
+			email: forwarding.fromEmail
+		})}"
+		signature={data.signature}
+		forward={{
+			emailId: forwarding.id,
+			attachments: forwarding.attachments.filter((a) => !a.inline),
+			expired: attachmentExpired(forwarding.sentAt)
+		}}
+		onsent={() => invalidateAll()}
+	/>
+{/if}

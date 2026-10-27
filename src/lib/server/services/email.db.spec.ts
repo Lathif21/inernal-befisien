@@ -349,4 +349,116 @@ describe.skipIf(!isDevDb)('email inbox service (dev database)', { timeout: 30_00
 			expect(next.created && next.clientName).toBe(c.name);
 		});
 	});
+
+	it('forwards an email as a new conversation with its chosen attachments', async () => {
+		await inRollback(async (tx, userId) => {
+			const budi = addr('budi');
+			const c = await clientWithContact(tx, userId, budi);
+			const original = await receiveEmail(
+				tx,
+				incoming({
+					from: { name: 'Budi', email: budi },
+					html: '<html><body><p>Lihat <b>lampiran</b>.</p><script>x()</script></body></html>',
+					attachments: [
+						{
+							id: 'a1',
+							filename: 'kebutuhan.pdf',
+							contentType: 'application/pdf',
+							size: 4,
+							inline: false
+						},
+						{ id: 'a2', filename: 'foto.jpg', contentType: 'image/jpeg', size: 3, inline: false }
+					]
+				})
+			);
+			const { sent, deps } = fakeSender();
+			const loaded: string[] = [];
+			const withFiles = {
+				...deps,
+				loadAttachment: async (s: { attachment: { id: string } }) => {
+					loaded.push(s.attachment.id);
+					return new TextEncoder().encode('%PDF');
+				}
+			};
+
+			const fwd = await sendEmailMessage(
+				tx,
+				{
+					threadId: original.id!,
+					to: [{ name: 'Sari', email: addr('sari') }],
+					cc: [],
+					subject: '',
+					// No message of its own: allowed for a forward
+					body: '<p></p>',
+					key: `fwd-${run}`,
+					forward: { emailId: original.id!, attachmentIds: ['a1'] }
+				},
+				userId,
+				withFiles
+			);
+			expect(fwd.forwarded).toBe(true);
+			// A new conversation, not a reply in Budi's thread
+			expect(fwd.threadId).toBe(fwd.id);
+			expect(sent).toHaveLength(1);
+			expect(sent[0].subject).toBe('Fwd: Penawaran integrasi ERP');
+			expect(sent[0].headers?.['In-Reply-To']).toBeUndefined();
+			expect(sent[0].text).toContain('---------- Pesan yang diteruskan ----------');
+			expect(sent[0].text).toContain(`Dari: Budi <${budi}>`);
+			expect(sent[0].html).toContain('<p>Lihat <b>lampiran</b>.</p>');
+			expect(sent[0].html).not.toContain('<script');
+			// Only the ticked attachment, fetched again from Resend
+			expect(loaded).toEqual(['a1']);
+			expect(sent[0].attachments?.map((a) => a.filename)).toEqual(['kebutuhan.pdf']);
+
+			const [stored] = await tx.select().from(emailMessage).where(eq(emailMessage.id, fwd.id));
+			expect(stored.clientId).toBe(c.id);
+			expect(stored.attachments.map((a) => a.filename)).toEqual(['kebutuhan.pdf']);
+			const logged = await emailActivities(tx, c.id);
+			expect(logged.map((l) => l.body?.split('\n')[0])).toContain(
+				'Email diteruskan: Fwd: Penawaran integrasi ERP'
+			);
+		});
+	});
+
+	it('refuses to forward attachments Resend no longer keeps, but forwards without them', async () => {
+		await inRollback(async (tx, userId) => {
+			const old = await receiveEmail(
+				tx,
+				incoming({
+					from: { name: null, email: addr('lama') },
+					sentAt: new Date(Date.now() - 40 * 24 * 3600_000),
+					attachments: [
+						{
+							id: 'a1',
+							filename: 'lama.pdf',
+							contentType: 'application/pdf',
+							size: 4,
+							inline: false
+						}
+					]
+				})
+			);
+			const { sent, deps } = fakeSender();
+			const input = {
+				to: [{ name: null, email: addr('sari') }],
+				cc: [],
+				subject: '',
+				body: '<p>Untuk diketahui.</p>',
+				key: `old-${run}`,
+				forward: { emailId: old.id!, attachmentIds: ['a1'] }
+			};
+			await expect(sendEmailMessage(tx, input, userId, deps)).rejects.toMatchObject({
+				field: 'forwardFiles'
+			});
+			expect(sent).toHaveLength(0);
+			const ok = await sendEmailMessage(
+				tx,
+				{ ...input, forward: { emailId: old.id!, attachmentIds: [] } },
+				userId,
+				deps
+			);
+			expect(ok.forwarded).toBe(true);
+			expect(sent[0].text).toContain('Untuk diketahui.');
+		});
+	});
 });

@@ -32,7 +32,9 @@ export const emailSendSchema = z.object({
 		.min(1, 'Tulis isi email.')
 		.max(EMAIL_UPLOAD_LIMIT + 100_000, 'Isi email terlalu besar.'),
 	/** Made when the form opens: a double submit sends once */
-	key: z.uuid()
+	key: z.uuid(),
+	/** Forward this stored email (Teruskan); its chosen attachments come as `forwardFiles` */
+	forwardId: z.union([z.uuid(), z.literal('')]).default('')
 });
 
 export const emailLinkSchema = z.object({
