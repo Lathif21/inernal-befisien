@@ -23,6 +23,7 @@ import {
 	updatePlan
 } from '#lib/server/services/plans.ts';
 import { stepActions } from '#lib/server/step-actions.ts';
+import { stepRunActions } from '#lib/server/step-run-actions.ts';
 import { aiActions } from '#lib/server/ai-actions.ts';
 import { aiEnabled } from '#lib/server/ai-config.ts';
 import { scheduleText } from '#lib/ai-schedule.ts';
@@ -88,6 +89,7 @@ const uuid = z.uuid();
 
 export const actions: Actions = {
 	...stepActions,
+	...stepRunActions,
 	...aiActions,
 
 	savePlan: async ({ request, locals }) => {

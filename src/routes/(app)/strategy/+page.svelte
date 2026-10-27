@@ -16,6 +16,7 @@
 	import NextStepPrompt from '#lib/components/steps/NextStepPrompt.svelte';
 	import PlanCard from '#lib/components/strategy/PlanCard.svelte';
 	import PlanFormDrawer from '#lib/components/strategy/PlanFormDrawer.svelte';
+	import StepRunModal from '#lib/components/strategy/StepRunModal.svelte';
 	import {
 		DEAL_STAGE_META,
 		NEXT_DEAL_STAGE,
@@ -162,6 +163,8 @@
 
 	// ---------- plans ----------
 	let planDrawer: ReturnType<typeof PlanFormDrawer> | undefined = $state();
+	/** "Jalankan" on a system-action step (P2-13) */
+	let runStepId = $state<string | null>(null);
 	const addPlanStep = (planId: string, value: StepValue) =>
 		post('addPlanStep', { planId, ...stepFields(value) }).then(settle);
 	const moveStep = (id: string, direction: 'up' | 'down') =>
@@ -360,6 +363,7 @@
 						onmove={moveStep}
 						oneditstep={openEditStep}
 						ondeletestep={openDeleteStep}
+						onrunstep={(s) => (runStepId = s.id)}
 						onedit={() => planDrawer?.openEdit(plan)}
 						onstatus={(status) => planStatus(plan.id, status)}
 						onask={data.aiEnabled && data.aiSuggestionsOn ? () => askAi(plan.id) : undefined}
@@ -439,6 +443,7 @@
 </main>
 
 <PlanFormDrawer bind:this={planDrawer} form={data.planForm} cards={data.cards} />
+<StepRunModal stepId={runStepId} onclose={() => (runStepId = null)} />
 
 <AddStepModal
 	bind:open={editStepOpen}

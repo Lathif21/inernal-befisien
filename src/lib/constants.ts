@@ -72,6 +72,16 @@ export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 export const PLAN_STATUSES = ['active', 'achieved', 'dropped'] as const;
 export type PlanStatus = (typeof PLAN_STATUSES)[number];
 
+/** A step is a reminder, or a system action run with Jalankan (P2-13; `#lib/step-run.ts`) */
+export const STEP_KINDS = [
+	'reminder',
+	'update_client',
+	'create_deal',
+	'move_deal',
+	'record_payment'
+] as const;
+export type StepKind = (typeof STEP_KINDS)[number];
+
 /** AI suggestions (P2-01): what kind of insight, and where it is in its life */
 export const AI_KINDS = ['risk', 'opportunity', 'pipeline'] as const;
 export type AiKind = (typeof AI_KINDS)[number];

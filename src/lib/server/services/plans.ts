@@ -20,6 +20,7 @@ import { addDays } from '../../period';
 import type { PlanInput } from '../../schemas/plan';
 import { parseCard } from '../../schemas/plan';
 import type { StepInput } from '../../schemas/step';
+import type { StepPayload } from '../../step-run';
 import type { DbOrTx } from '../db/client';
 import { action, client, deal, project, strategyPlan, user } from '../db/schema/index';
 import { addAction } from './actions';
@@ -61,6 +62,7 @@ function stepSelect() {
 		cardTitle: sql<string>`coalesce(${project.name}, ${deal.title})`,
 		dealStage: deal.stage,
 		projectStage: project.stage,
+		kind: action.kind,
 		cardOpenSteps
 	};
 }
@@ -373,14 +375,23 @@ export async function setPlanStatus(
 	});
 }
 
-/** Add a step at the end of a plan; it lands on the plan's card (the project once the deal is won) */
-export async function addPlanStep(db: DbOrTx, planId: string, input: StepInput, userId: string) {
+/**
+ * Add a step at the end of a plan; it lands on the plan's card (the project once the deal is won).
+ * `payload` makes it a system action (P2-13) instead of a reminder.
+ */
+export async function addPlanStep(
+	db: DbOrTx,
+	planId: string,
+	input: StepInput,
+	userId: string,
+	payload: StepPayload | null = null
+) {
 	return db.transaction(async (tx) => {
 		const [plan] = await tx.select().from(strategyPlan).where(eq(strategyPlan.id, planId));
 		if (!plan) throw new ServiceError('Rencana tidak ditemukan.');
 		if (plan.status !== 'active') throw new ServiceError('Rencana ini tidak aktif lagi.');
 		const ref = plan.projectId ? { projectId: plan.projectId } : { dealId: plan.dealId! };
-		return addAction(tx, ref, input, userId, { planId });
+		return addAction(tx, ref, input, userId, { planId, payload });
 	});
 }
 

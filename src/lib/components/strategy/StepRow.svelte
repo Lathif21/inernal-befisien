@@ -6,9 +6,11 @@
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash from '@lucide/svelte/icons/trash-2';
+	import Zap from '@lucide/svelte/icons/zap';
 	import Avatar from '#lib/components/Avatar.svelte';
 	import { dateID } from '#lib/format.ts';
 	import { nextActionState } from '#lib/next-action.ts';
+	import { isRunKind, RUN_KIND_LABELS } from '#lib/step-run.ts';
 
 	export type RowStep = {
 		title: string;
@@ -16,6 +18,8 @@
 		allDay: boolean;
 		doneAt: Date | string | null;
 		assigneeName: string | null;
+		/** 'reminder' or a system action (P2-13) */
+		kind?: string;
 	};
 
 	type Props = {
@@ -30,6 +34,8 @@
 		/** "Ubah langkah" (open steps only) and "Hapus langkah" in the row menu; omitted = no menu */
 		onedit?: () => void;
 		ondelete?: () => void;
+		/** "Jalankan" on an open system-action step; omitted = no button */
+		onrun?: () => void;
 	};
 
 	let {
@@ -40,8 +46,11 @@
 		canUp = false,
 		canDown = false,
 		onedit,
-		ondelete
+		ondelete,
+		onrun
 	}: Props = $props();
+
+	const runKind = $derived(isRunKind(step.kind) ? step.kind : null);
 
 	const menu = $derived(
 		[
@@ -77,6 +86,17 @@
 	{/if}
 	<span class="bf-step__title">{step.title}</span>
 	<span class="bf-step__when">{when}</span>
+	{#if runKind && !step.doneAt && onrun}
+		<button
+			type="button"
+			class="bf-btn bf-btn--secondary bf-btn--sm shrink-0"
+			title={RUN_KIND_LABELS[runKind]}
+			aria-label="Jalankan: {step.title}"
+			onclick={onrun}
+		>
+			<Zap size={14} strokeWidth={2} aria-hidden="true" />Jalankan
+		</button>
+	{/if}
 	{#if step.assigneeName}<Avatar name={step.assigneeName} size={24} />{/if}
 	{#if onmove}
 		<span class="flex flex-col">

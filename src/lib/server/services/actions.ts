@@ -13,6 +13,7 @@ import {
 	type ProjectStage
 } from '../../constants';
 import { stepDueAt, type StepInput } from '../../schemas/step';
+import type { StepPayload } from '../../step-run';
 import type { DbOrTx, Tx } from '../db/client';
 import { action, deal, project, user } from '../db/schema/index';
 import { logActivity } from './activity';
@@ -128,7 +129,7 @@ export async function addAction(
 	ref: CardRef,
 	input: StepInput,
 	userId: string,
-	extra: { planId?: string | null; sort?: number } = {}
+	extra: { planId?: string | null; sort?: number; payload?: StepPayload | null } = {}
 ) {
 	return db.transaction(async (tx) => {
 		const ctx = await cardContext(tx, ref);
@@ -152,7 +153,9 @@ export async function addAction(
 				title: input.title,
 				dueAt: stepDueAt(input),
 				allDay: input.allDay,
-				assigneeId: input.assigneeId || ctx.ownerId || userId
+				assigneeId: input.assigneeId || ctx.ownerId || userId,
+				kind: extra.payload?.kind ?? 'reminder',
+				payload: extra.payload ?? null
 			})
 			.returning();
 		await logActivity(tx, {

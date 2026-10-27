@@ -20,6 +20,9 @@
 	import Pager from '#lib/components/Pager.svelte';
 	import AiPanel from '#lib/components/ai/AiPanel.svelte';
 	import ClientContextCard from '#lib/components/clients/ClientContextCard.svelte';
+	import StepRunModal from '#lib/components/strategy/StepRunModal.svelte';
+	import { RUN_KIND_LABELS, type RunKind } from '#lib/step-run.ts';
+	import Zap from '@lucide/svelte/icons/zap';
 	import PeriodFilter from '#lib/components/PeriodFilter.svelte';
 	import StatTile from '#lib/components/StatTile.svelte';
 	import TransactionFormDrawer from '#lib/components/finance/TransactionFormDrawer.svelte';
@@ -178,6 +181,8 @@
 	}
 	let txnDrawer: ReturnType<typeof TransactionFormDrawer> | undefined = $state();
 	let now = $state(new Date());
+	/** "Jalankan" on a system-action step (P2-13) */
+	let runStepId = $state<string | null>(null);
 	$effect(() => {
 		const t = setInterval(() => (now = new Date()), 60_000);
 		return () => clearInterval(t);
@@ -477,6 +482,43 @@
 						onask={data.aiEnabled && data.aiSuggestionsOn ? aiAsk : undefined}
 						limit={3}
 					/>
+				{/if}
+				{#if !archived && data.runnableSteps.length}
+					<section
+						class="flex flex-col gap-3 rounded-card bg-surface p-5"
+						aria-label="Langkah sistem"
+					>
+						<div>
+							<h2 class="text-section-title">Langkah sistem</h2>
+							<p class="text-small text-ink-2">
+								Dari rencana strategi; bisa dijalankan langsung di CRM.
+							</p>
+						</div>
+						<ul class="flex flex-col gap-2">
+							{#each data.runnableSteps as s (s.id)}
+								<li
+									class="flex flex-wrap items-center gap-2 rounded-kanban border border-line px-3 py-2.5"
+								>
+									<span class="min-w-0 flex-1">
+										<span class="block truncate font-bold">{s.title}</span>
+										<span class="block truncate text-small text-ink-3"
+											>{RUN_KIND_LABELS[s.kind as RunKind]} · {s.cardTitle} · {s.allDay
+												? dateID(s.dueAt)
+												: dateID(s.dueAt, 'datetime')}</span
+										>
+									</span>
+									<button
+										type="button"
+										class="bf-btn bf-btn--secondary bf-btn--sm shrink-0"
+										aria-label="Jalankan: {s.title}"
+										onclick={() => (runStepId = s.id)}
+									>
+										<Zap size={14} strokeWidth={2} aria-hidden="true" />Jalankan
+									</button>
+								</li>
+							{/each}
+						</ul>
+					</section>
 				{/if}
 				{#each data.activeProjects as p (p.id)}
 					<section
@@ -985,3 +1027,5 @@
 		Kontak tertua lainnya otomatis menjadi kontak utama.
 	{/if}
 </ConfirmDialog>
+
+<StepRunModal stepId={runStepId} onclose={() => (runStepId = null)} />

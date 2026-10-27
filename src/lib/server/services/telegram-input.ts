@@ -48,6 +48,13 @@ import { ServiceError } from './errors';
 import { importRows } from './import';
 import { addPlanStep, createPlan } from './plans';
 import {
+	cancelledStepRunHtml,
+	confirmStepRun,
+	openStepRun,
+	reviseStepRun,
+	STEP_RUN
+} from './telegram-step-run';
+import {
 	applyStrategyProposal,
 	closeStrategyChat,
 	openStrategyChat,
@@ -579,7 +586,8 @@ export type InboundResult =
 	| { status: 'not-linked' | 'empty' }
 	| { status: 'unclear'; problems: string[] }
 	| { status: 'draft'; draftId: string; kind: Draft['kind']; replaced: boolean }
-	| { status: 'strategy'; clientId: string; proposal: boolean };
+	| { status: 'strategy'; clientId: string; proposal: boolean }
+	| { status: 'step_run'; draftId: string };
 
 /** The open draft of this chat, if any (the newest pending one that has not expired) */
 async function openDraft(db: DbOrTx, chatId: string, now: Date) {
@@ -590,7 +598,7 @@ async function openDraft(db: DbOrTx, chatId: string, now: Date) {
 			and(
 				eq(telegramDraft.chatId, chatId),
 				eq(telegramDraft.status, 'pending'),
-				ne(telegramDraft.kind, STRATEGY),
+				notInArray(telegramDraft.kind, [STRATEGY, STEP_RUN]),
 				gt(telegramDraft.expiresAt, now)
 			)
 		)
@@ -620,6 +628,19 @@ export async function processInbound(
 	if (!input) {
 		await deps.send('Voice note tidak terdengar jelas. Coba kirim ulang atau ketik pesannya.');
 		return { status: 'empty' };
+	}
+
+	// An open Jalankan preview takes completions and corrections first (P2-13)
+	const runRow = await openStepRun(db, payload.chatId, now);
+	if (runRow) {
+		const r = await reviseStepRun(
+			db,
+			runRow,
+			{ text: input, quote: quote(source, input) },
+			deps,
+			now
+		);
+		if (r === 'revised') return { status: 'step_run', draftId: runRow.id };
 	}
 
 	// An open strategy conversation answers follow-ups first; a message about something else
@@ -749,8 +770,11 @@ export async function processInbound(
 
 // ---------- the webhook: Simpan / Batal ----------
 
-/** `toast` answers the button tap; `html` (when set) replaces the draft message */
-export type DecideResult = { toast: string; html?: string };
+/**
+ * `toast` answers the button tap; `html` (when set) replaces the draft message, with `buttons`
+ * (one row each) under it
+ */
+export type DecideResult = { toast: string; html?: string; buttons?: TelegramButton[][] };
 
 const appLink = (appUrl: string, path: string, label: string) =>
 	`<a href="${esc(`${appUrl.replace(/\/$/, '')}/${path}`)}">${label}</a>`;
@@ -868,6 +892,7 @@ export async function confirmDraft(
 				.for('update');
 			if (!d || d.chatId !== input.chatId || d.kind === QUESTION)
 				return { toast: 'Draf tidak ditemukan.' };
+			if (d.kind === STEP_RUN) return await confirmStepRun(tx, d, now);
 			if (d.kind === STRATEGY) {
 				const chat = d.payload as unknown as StrategyChat;
 				if (d.status !== 'pending')
@@ -881,14 +906,25 @@ export async function confirmDraft(
 						toast: 'Percakapan sudah kedaluwarsa.',
 						html: `${proposalHtml(chat.proposal)}\n\n<b>Kedaluwarsa.</b> Tanyakan strateginya lagi.`
 					};
-				const line = await applyStrategyProposal(tx, chat, d.userId);
+				const { line, runnable } = await applyStrategyProposal(tx, chat, d.userId);
 				await tx
 					.update(telegramDraft)
 					.set({ status: 'saved', decidedAt: now })
 					.where(eq(telegramDraft.id, d.id));
 				return {
 					toast: 'Tersimpan.',
-					html: `${proposalHtml(chat.proposal)}\n\n<b>${line}</b> ${appLink(input.appUrl, 'strategy', 'Buka Strategi')}`
+					html:
+						`${proposalHtml(chat.proposal)}\n\n<b>${line}</b> ${appLink(input.appUrl, 'strategy', 'Buka Strategi')}` +
+						(runnable.length
+							? '\n\n<i>Langkah aksi bisa dijalankan di CRM dengan tombol di bawah (ada pratinjau dulu); yang lain menjadi pengingat.</i>'
+							: ''),
+					// One Jalankan per system-action step (P2-13)
+					buttons: runnable.map((s) => [
+						{
+							text: `Jalankan: ${s.title.length > 40 ? `${s.title.slice(0, 39)}…` : s.title}`,
+							data: `x:${s.id}`
+						}
+					])
 				};
 			}
 			const draft = d.payload as unknown as Draft;
@@ -939,6 +975,7 @@ export async function cancelDraft(
 				other && other.chatId === input.chatId ? DECIDED[other.status] : 'Draf tidak ditemukan.'
 		};
 	}
+	if (d.kind === STEP_RUN) return { toast: 'Dibatalkan.', html: cancelledStepRunHtml(d) };
 	if (d.kind === STRATEGY) {
 		const chat = d.payload as unknown as StrategyChat;
 		return {

@@ -30,16 +30,22 @@ export async function telegramCall<T = unknown>(
 /** A button under a message; `data` comes back in a callback_query (max 64 bytes) */
 export type TelegramButton = { text: string; data: string };
 
-const keyboard = (buttons: TelegramButton[]) => ({
-	inline_keyboard: [buttons.map((b) => ({ text: b.text, callback_data: b.data }))]
+/** One row of buttons, or several rows (one Jalankan per step) */
+export type TelegramButtons = TelegramButton[] | TelegramButton[][];
+
+const keyboard = (buttons: TelegramButtons) => ({
+	inline_keyboard: (buttons.length && Array.isArray(buttons[0])
+		? (buttons as TelegramButton[][])
+		: [buttons as TelegramButton[]]
+	).map((row) => row.map((b) => ({ text: b.text, callback_data: b.data })))
 });
 
-/** sendMessage with optional buttons in one row; returns the new message's id */
+/** sendMessage with optional buttons; returns the new message's id */
 export async function sendTelegramMessage(
 	token: string,
 	chatId: string,
 	html: string,
-	buttons: TelegramButton[] = []
+	buttons: TelegramButtons = []
 ) {
 	const sent = await telegramCall<{ message_id: number }>(token, 'sendMessage', {
 		chat_id: chatId,
@@ -51,19 +57,21 @@ export async function sendTelegramMessage(
 	return sent.message_id;
 }
 
-/** Replace a message's text; its buttons are removed */
+/** Replace a message's text; its buttons are removed unless new ones are given */
 export async function editTelegramMessage(
 	token: string,
 	chatId: string,
 	messageId: number,
-	html: string
+	html: string,
+	buttons: TelegramButtons = []
 ) {
 	await telegramCall(token, 'editMessageText', {
 		chat_id: chatId,
 		message_id: messageId,
 		text: html,
 		parse_mode: 'HTML',
-		link_preview_options: { is_disabled: true }
+		link_preview_options: { is_disabled: true },
+		...(buttons.length ? { reply_markup: keyboard(buttons) } : {})
 	});
 }
 

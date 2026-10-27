@@ -6,18 +6,24 @@ import { timingSafeEqual } from 'node:crypto';
 import { json } from '@sveltejs/kit';
 import { BETTER_AUTH_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
-import { editTelegramMessage } from '#lib/server/notify/telegram.ts';
+import {
+	clearTelegramButtons,
+	editTelegramMessage,
+	sendTelegramMessage
+} from '#lib/server/notify/telegram.ts';
 import {
 	BOT_HELP,
 	cancelDraft,
 	confirmDraft,
-	MAX_VOICE_SECONDS
+	MAX_VOICE_SECONDS,
+	type DecideResult
 } from '#lib/server/services/telegram-input.ts';
 import { linkedUser, linkTelegram, unlinkTelegram } from '#lib/server/services/telegram-link.ts';
 import {
 	acceptSuggestionFromChat,
 	dismissSuggestionFromChat
 } from '#lib/server/services/telegram-strategy.ts';
+import { startStepRun } from '#lib/server/services/telegram-step-run.ts';
 import { queueTelegramInbound } from '#lib/server/trigger.ts';
 import type { RequestHandler } from './$types';
 
@@ -43,8 +49,9 @@ const HOW_TO =
 	'Untuk menghubungkan akun, buka Befisien CRM → Pengaturan → Telegram, lalu klik <b>Hubungkan Telegram</b>.';
 
 const appUrl = BETTER_AUTH_URL ?? 'http://localhost:5173';
-// s / c: Simpan / Batal a draft or a strategy proposal; a / d: Terima / Abaikan a Saran AI
-const DRAFT_BUTTON = /^([scad]):([0-9a-f-]{36})$/;
+// s / c: Simpan / Batal a draft, a strategy proposal or a Jalankan preview; a / d: Terima / Abaikan
+// a Saran AI; x: Jalankan a system-action step of a saved plan (P2-13)
+const DRAFT_BUTTON = /^([scadx]):([0-9a-f-]{36})$/;
 
 async function onButton(q: NonNullable<Update['callback_query']>) {
 	const answer = (text: string) =>
@@ -56,9 +63,21 @@ async function onButton(q: NonNullable<Update['callback_query']>) {
 	const chatId = String(msg.chat.id);
 	const sender = await linkedUser(db, chatId);
 	if (!sender) return answer('Chat ini belum terhubung ke Befisien CRM.');
+	const token = TELEGRAM_BOT_TOKEN ?? '';
+	if (m[1] === 'x') {
+		const run = await startStepRun(
+			db,
+			{ stepId: m[2], chatId, userId: sender.id },
+			{
+				send: (html, buttons) => sendTelegramMessage(token, chatId, html, buttons),
+				clearButtons: (messageId) => clearTelegramButtons(token, chatId, messageId)
+			}
+		);
+		return answer(run.toast);
+	}
 	const input = { draftId: m[2], chatId };
 	const suggestion = { suggestionId: m[2], userId: sender.id };
-	const result =
+	const result: DecideResult =
 		m[1] === 's'
 			? await confirmDraft(db, { ...input, appUrl })
 			: m[1] === 'c'
@@ -67,7 +86,7 @@ async function onButton(q: NonNullable<Update['callback_query']>) {
 					? await acceptSuggestionFromChat(db, suggestion)
 					: await dismissSuggestionFromChat(db, suggestion);
 	if (result.html)
-		await editTelegramMessage(TELEGRAM_BOT_TOKEN ?? '', chatId, msg.message_id, result.html).catch(
+		await editTelegramMessage(token, chatId, msg.message_id, result.html, result.buttons).catch(
 			(e) => console.warn('[telegram] edit failed:', String(e))
 		);
 	return answer(result.toast);

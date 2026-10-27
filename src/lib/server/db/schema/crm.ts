@@ -15,6 +15,8 @@ import {
 	uuid,
 	type AnyPgColumn
 } from 'drizzle-orm/pg-core';
+import { STEP_KINDS } from '../../../constants';
+import type { StepPayload } from '../../../step-run';
 import { user } from './auth';
 import {
 	activityType,
@@ -210,10 +212,18 @@ export const action = pgTable(
 		fromSuggestionId: uuid('from_suggestion_id').references((): AnyPgColumn => aiSuggestion.id, {
 			onDelete: 'set null'
 		}),
+		/** A reminder, or a system action run with Jalankan (P2-13) */
+		kind: text('kind', { enum: STEP_KINDS }).notNull().default('reminder'),
+		/** What the plan knew about the action (which deal, the amount, …); filled in at Jalankan */
+		payload: jsonb('payload').$type<StepPayload>(),
 		...timestamps
 	},
 	(t) => [
 		check('action_one_parent', sql`num_nonnulls(${t.dealId}, ${t.projectId}) = 1`),
+		check(
+			'action_kind',
+			sql`${t.kind} in ('reminder', 'update_client', 'create_deal', 'move_deal', 'record_payment')`
+		),
 		index('action_open_assignee_due_idx')
 			.on(t.assigneeId, t.dueAt)
 			.where(sql`${t.doneAt} is null`),

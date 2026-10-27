@@ -25,6 +25,8 @@
 		/** Step menu: "Ubah langkah" / "Hapus langkah" */
 		oneditstep: (step: StrategyStep) => void;
 		ondeletestep: (step: StrategyStep) => void;
+		/** "Jalankan" on a system-action step (P2-13) */
+		onrunstep?: (step: StrategyStep) => void;
 		onedit: () => void;
 		onstatus: (status: 'achieved' | 'dropped') => void;
 		/** "Minta saran AI" for this plan; omitted = no button (AI key missing or Saran AI off) */
@@ -40,6 +42,7 @@
 		onmove,
 		oneditstep,
 		ondeletestep,
+		onrunstep,
 		onedit,
 		onstatus,
 		onask
@@ -202,6 +205,7 @@
 					canDown={index < plan.totalSteps - 1}
 					onedit={() => oneditstep(s)}
 					ondelete={() => ondeletestep(s)}
+					onrun={onrunstep ? () => onrunstep(s) : undefined}
 				/>
 			{/each}
 		</ol>

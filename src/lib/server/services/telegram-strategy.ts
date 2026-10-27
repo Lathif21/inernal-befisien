@@ -9,6 +9,12 @@ import { dateID, dateToWibLocal } from '../../format';
 import { parseDue } from '../../import/client-csv';
 import { planSchema } from '../../schemas/plan';
 import { stepSchema, type StepInput } from '../../schemas/step';
+import {
+	parseStepAction,
+	RUN_KIND_LABELS,
+	STEP_ACTION_PATTERN,
+	type StepPayload
+} from '../../step-run';
 import type { AiComplete } from '../ai/client';
 import {
 	STRATEGY_PROPOSALS,
@@ -20,6 +26,7 @@ import type { DbOrTx, Tx } from '../db/client';
 import {
 	action,
 	aiSuggestion,
+	client,
 	deal,
 	project,
 	strategyPlan,
@@ -46,7 +53,8 @@ const HISTORY_TURNS = 12;
 
 type Turn = { from: 'user' | 'bot'; text: string };
 type Card = { kind: 'deal' | 'project'; id: string; title: string };
-type StepDraft = { title: string; due: string };
+/** `payload` set = a system action run with Jalankan once saved (P2-13) */
+type StepDraft = { title: string; due: string; payload?: StepPayload | null };
 /** A step of an existing plan to move or rename (`id`), or a new one (`id` null) */
 type PlanStepChange = StepDraft & { id: string | null; before: StepDraft | null };
 
@@ -94,7 +102,7 @@ export async function openStrategyChat(db: DbOrTx, chatId: string, now: Date) {
 async function loadStrategyData(db: DbOrTx, clientId: string) {
 	const ctx = await buildClientContext(db, clientId);
 	if (ctx.client.archivedAt) throw new ServiceError('Klien ini sudah diarsipkan.');
-	const [plans, suggestions] = await Promise.all([
+	const [plans, suggestions, [profileRow]] = await Promise.all([
 		db
 			.select({
 				id: strategyPlan.id,
@@ -111,8 +119,26 @@ async function loadStrategyData(db: DbOrTx, clientId: string) {
 			.where(and(eq(strategyPlan.clientId, clientId), eq(strategyPlan.status, 'active')))
 			.orderBy(asc(strategyPlan.createdAt)),
 		// Saran AI off: no suggestions in the chat (the conversation itself still works)
-		getAiSettings(db).then((s) => (s.enabled ? listOpenSuggestions(db, { clientId }) : []))
+		getAiSettings(db).then((s) => (s.enabled ? listOpenSuggestions(db, { clientId }) : [])),
+		db
+			.select({ website: client.website, source: client.source })
+			.from(client)
+			.where(eq(client.id, clientId))
 	]);
+	// What is filled in and what is missing: a thin prospect gets "lengkapi profil" first (P2-13)
+	const profileFields: [string, unknown][] = [
+		['industri', ctx.facts.klien.industri],
+		['sumber', profileRow?.source],
+		['kota', ctx.facts.klien.kota],
+		['website', profileRow?.website],
+		['catatan', ctx.facts.klien.catatan],
+		['kontak', ctx.facts.kontak.length],
+		['ringkasan_konteks', ctx.facts.ringkasan_konteks]
+	];
+	const profile = {
+		terisi: profileFields.filter(([, v]) => !!v).map(([k]) => k),
+		kosong: profileFields.filter(([, v]) => !v).map(([k]) => k)
+	};
 	const steps = plans.length
 		? await db
 				.select({
@@ -140,6 +166,7 @@ async function loadStrategyData(db: DbOrTx, clientId: string) {
 	return {
 		ctx,
 		cards,
+		profile,
 		plans: plans.map((p) => {
 			const mine = steps.filter((s) => s.planId === p.id);
 			return {
@@ -215,7 +242,8 @@ export function proposalHtml(p: Proposal) {
 				? ' <i>(baru)</i>'
 				: ` <i>(sebelumnya ${esc(whenText(before.due))}${before.title !== s.title ? ` · ${esc(before.title)}` : ''})</i>`;
 		}
-		lines.push(`${i + 1}. ${esc(whenText(s.due))} · ${esc(s.title)}${note}`);
+		const run = s.payload ? ` <i>[${esc(RUN_KIND_LABELS[s.payload.kind])}]</i>` : '';
+		lines.push(`${i + 1}. ${esc(whenText(s.due))} · ${esc(s.title)}${run}${note}`);
 	});
 	return lines.join('\n');
 }
@@ -246,8 +274,17 @@ const answerSchema = z.object({
 
 const LINE_DATE = /\d{4}-\d{2}-\d{2}(?:[T ]\d{1,2}[:.]\d{2})?/;
 
-/** "2026-10-26T10:00 | Kirim build UAT" → step, or the problem with it */
+/**
+ * "2026-10-26T10:00 | Kirim build UAT" → step, or the problem with it. A last part such as
+ * "pindah_deal; deal=…; tahap=proposal" makes it a system action.
+ */
 function stepOf(line: string, now: Date): StepDraft | string {
+	const parts = line.split('|');
+	let payload: StepPayload | null = null;
+	if (parts.length >= 3 && STEP_ACTION_PATTERN.test(parts[parts.length - 1])) {
+		payload = parseStepAction(parts.pop()!);
+		line = parts.join('|');
+	}
 	const [left, ...rest] = line.split('|');
 	const date = LINE_DATE.exec(rest.length ? left : line);
 	const title = (rest.length ? rest.join('|') : date ? line.replace(date[0], '') : line)
@@ -258,7 +295,17 @@ function stepOf(line: string, now: Date): StepDraft | string {
 	const due = parseDue(date[0].replace(' ', 'T').replace('.', ':'));
 	if ('error' in due) return `Tanggal langkah "${title}" tidak bisa dibaca.`;
 	if (due.due < dateToWibLocal(now)) return `Waktu langkah "${title}" sudah lewat.`;
-	return { title: title.slice(0, 200), due: due.due };
+	return { title: title.slice(0, 200), due: due.due, payload };
+}
+
+/** An action about another client's deal or an unknown invoice stays a reminder */
+function usablePayload(p: StepPayload | null | undefined, data: StrategyData) {
+	if (!p) return null;
+	if (p.kind === 'move_deal')
+		return data.ctx.facts.deal_terbuka.some((d) => d.id === p.dealId) ? p : null;
+	if (p.kind === 'record_payment')
+		return data.ctx.facts.invoice.some((i) => i.nomor === p.invoiceNumber) ? p : null;
+	return p;
 }
 
 /** Check the AI's proposal against the client's cards and plans */
@@ -271,13 +318,13 @@ function proposalOf(
 	if (a.proposal_action === 'keep') return { proposal: previous, problems: [] };
 	if (a.proposal_action === 'none') return { proposal: null, problems: [] };
 	const problems: string[] = [];
-	const parse = (line: string) => {
+	const parse = (line: string): StepDraft | null => {
 		const s = stepOf(line, now);
 		if (typeof s === 'string') {
 			problems.push(s);
 			return null;
 		}
-		return s;
+		return { ...s, payload: usablePayload(s.payload, data) };
 	};
 	if (a.proposal_action === 'new_plan') {
 		const steps = a.steps
@@ -313,8 +360,9 @@ function proposalOf(
 			if (!s) continue;
 			const before = { title: old.title, due: dateToWibLocal(old.dueAt) };
 			// unchanged lines are not a change
+			// an existing step keeps its kind: only new steps carry an action
 			if (s.title !== before.title || s.due !== before.due)
-				changes.push({ ...s, id: old.id, before });
+				changes.push({ ...s, payload: null, id: old.id, before });
 			continue;
 		}
 		const s = parse(/^\s*baru\s*$/i.test(head) ? rest.join('|') : line);
@@ -402,7 +450,8 @@ export async function runStrategyTurn(
 				})),
 				previous: chat.proposal,
 				history: chat.history,
-				message: input.text
+				message: input.text,
+				profile: data.profile
 			}),
 			schema: STRATEGY_SCHEMA,
 			schemaName: 'strategi_telegram',
@@ -513,10 +562,18 @@ const toStep = (s: StepDraft): StepInput =>
 		assigneeId: ''
 	});
 
-/** Write the proposal through the plan services; returns the result line */
+/**
+ * Write the proposal through the plan services. Returns the result line and the saved system-action
+ * steps, which get a Jalankan button.
+ */
 export async function applyStrategyProposal(tx: Tx, chat: StrategyChat, userId: string) {
 	const p = chat.proposal;
 	if (!p) throw new ServiceError('Belum ada usulan untuk disimpan.');
+	const runnable: { id: string; title: string }[] = [];
+	const add = async (planId: string, s: StepDraft) => {
+		const row = await addPlanStep(tx, planId, toStep(s), userId, s.payload ?? null);
+		if (s.payload) runnable.push({ id: row.id, title: row.title });
+	};
 	if (p.action === 'new_plan') {
 		const plan = await createPlan(
 			tx,
@@ -527,8 +584,8 @@ export async function applyStrategyProposal(tx: Tx, chat: StrategyChat, userId: 
 			}),
 			userId
 		);
-		for (const s of p.steps) await addPlanStep(tx, plan.id, toStep(s), userId);
-		return `Tersimpan: rencana dengan ${p.steps.length} langkah.`;
+		for (const s of p.steps) await add(plan.id, s);
+		return { line: `Tersimpan: rencana dengan ${p.steps.length} langkah.`, runnable };
 	}
 	let moved = 0;
 	let added = 0;
@@ -537,11 +594,14 @@ export async function applyStrategyProposal(tx: Tx, chat: StrategyChat, userId: 
 			await updateAction(tx, s.id, toStep(s), userId);
 			moved++;
 		} else {
-			await addPlanStep(tx, p.planId, toStep(s), userId);
+			await add(p.planId, s);
 			added++;
 		}
 	}
-	return `Tersimpan: ${[moved && `${moved} langkah diubah`, added && `${added} langkah ditambahkan`].filter(Boolean).join(', ')}.`;
+	return {
+		line: `Tersimpan: ${[moved && `${moved} langkah diubah`, added && `${added} langkah ditambahkan`].filter(Boolean).join(', ')}.`,
+		runnable
+	};
 }
 
 // ---------- Terima / Abaikan on a suggestion ----------

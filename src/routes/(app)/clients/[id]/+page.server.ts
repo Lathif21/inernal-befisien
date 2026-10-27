@@ -34,6 +34,8 @@ import {
 } from '#lib/server/services/transactions.ts';
 import { transactionActions } from '#lib/server/transaction-actions.ts';
 import { aiActions } from '#lib/server/ai-actions.ts';
+import { listRunnableSteps } from '#lib/server/services/step-runs.ts';
+import { stepRunActions } from '#lib/server/step-run-actions.ts';
 import { aiEnabled } from '#lib/server/ai-config.ts';
 import { scheduleText } from '#lib/ai-schedule.ts';
 import { getAiSettings } from '#lib/server/services/ai-settings.ts';
@@ -100,20 +102,22 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	if (!client) error(404, 'Klien tidak ditemukan.');
 
 	const active = projects.filter((p) => p.stage !== 'done');
-	const [nextActions, transactions, categories, txnForm, suggestions, context] = await Promise.all([
-		getNextActions(db, { projectIds: active.map((p) => p.id) }),
-		finance
-			? listTransactions(
-					db,
-					{ clientId: id, q: q || undefined, type, from: period.from, to: period.to },
-					{ page }
-				)
-			: Promise.resolve(null),
-		finance ? listCategories(db) : Promise.resolve([]),
-		finance ? superValidate(zod4(transactionSchema)) : Promise.resolve(null),
-		tab === 'ringkasan' ? listOpenSuggestions(db, { clientId: id }) : Promise.resolve([]),
-		tab === 'ringkasan' ? getClientContext(db, id) : Promise.resolve(null)
-	]);
+	const [nextActions, transactions, categories, txnForm, suggestions, context, runnableSteps] =
+		await Promise.all([
+			getNextActions(db, { projectIds: active.map((p) => p.id) }),
+			finance
+				? listTransactions(
+						db,
+						{ clientId: id, q: q || undefined, type, from: period.from, to: period.to },
+						{ page }
+					)
+				: Promise.resolve(null),
+			finance ? listCategories(db) : Promise.resolve([]),
+			finance ? superValidate(zod4(transactionSchema)) : Promise.resolve(null),
+			tab === 'ringkasan' ? listOpenSuggestions(db, { clientId: id }) : Promise.resolve([]),
+			tab === 'ringkasan' ? getClientContext(db, id) : Promise.resolve(null),
+			tab === 'ringkasan' ? listRunnableSteps(db, id) : Promise.resolve([])
+		]);
 	const aiSettings = await getAiSettings(db);
 
 	return {
@@ -130,6 +134,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 			transactions && txnForm ? { transactions, categories, txnForm, period, q, type } : null,
 		suggestions,
 		context,
+		runnableSteps,
 		aiEnabled: aiEnabled(),
 		// Pengaturan → Saran AI (Ringkasan konteks keeps `aiEnabled` only)
 		aiSuggestionsOn: aiSettings.enabled,
@@ -144,6 +149,7 @@ const contactIdSchema = z.uuid();
 
 export const actions: Actions = {
 	...transactionActions,
+	...stepRunActions,
 	...aiActions,
 	save: async ({ request, locals }) => saveClientForm(request, requireUser(locals).id),
 
