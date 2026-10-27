@@ -34,7 +34,32 @@ export const emailSendSchema = z.object({
 	/** Made when the form opens: a double submit sends once */
 	key: z.uuid(),
 	/** Forward this stored email (Teruskan); its chosen attachments come as `forwardFiles` */
-	forwardId: z.union([z.uuid(), z.literal('')]).default('')
+	forwardId: z.union([z.uuid(), z.literal('')]).default(''),
+	/** The saved draft this email was written in; deleted once it is sent */
+	draftId: z.union([z.uuid(), z.literal('')]).default('')
+});
+
+/**
+ * A draft as the drawer holds it (P3-09): addresses stay as typed and are checked only when it is
+ * sent or scheduled. `uploads` and `forwardFiles` come as repeated fields.
+ */
+export const emailDraftSchema = z.object({
+	draftId: z.uuid(),
+	threadId: z.union([z.uuid(), z.literal('')]).default(''),
+	forwardId: z.union([z.uuid(), z.literal('')]).default(''),
+	to: z.string().max(2000, 'Daftar alamat terlalu panjang.').default(''),
+	cc: z.string().max(2000, 'Daftar alamat terlalu panjang.').default(''),
+	subject: z.string().max(250, 'Subjek maksimal 250 karakter.').default(''),
+	body: z
+		.string()
+		.max(EMAIL_UPLOAD_LIMIT + 100_000, 'Isi email terlalu besar.')
+		.default('')
+});
+
+/** Jadwalkan: WIB date + time from the schedule panel */
+export const emailScheduleSchema = z.object({
+	sendDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pilih tanggal kirim.'),
+	sendTime: z.string().regex(/^\d{2}:\d{2}$/, 'Pilih jam kirim.')
 });
 
 export const emailLinkSchema = z.object({

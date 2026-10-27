@@ -214,6 +214,8 @@ befisien.com's MX points to **Resend Inbound** (Zoho Mail Free has no IMAP and n
 
 Any other error answers 500 and Resend retries; a repeat stores nothing. Replies go out through the Resend send API from `INBOX_FROM`, with `In-Reply-To` / `References` and an `Idempotency-Key` from the form. Email HTML is shown only in a sandboxed iframe (no scripts, its own CSP, remote images off until "Tampilkan gambar").
 
+**Big files (up to 200 MB):** Vercel accepts 4.5 MB per request and Resend 40 MB per email, so files never pass through the app. The drawer asks the `upload` action for a presigned PUT and the browser uploads to the Neon bucket `email-files` (private, CORS for the app's origin). On send, the server checks each object, attaches files while they fit in 25 MB together, and puts the rest in the email as links to `/f/<token>`, a public route that checks the expiry (30 days) and redirects to a one-hour presigned GET. The `email-files-cleanup` task deletes expired files every night.
+
 Writing in the CRM uses a rich-text editor (Tiptap). Pictures pasted or dropped into the text are shrunk in the browser and posted as base64 inside the HTML; the server cleans the HTML (sanitize-html, only the editor's tags), sends each picture as an inline attachment (`cid:`) and stores the `data:` version, so the thread keeps showing it. Files go to Resend as attachments and are not copied: Resend keeps them 30 days, the thread fetches a fresh link until then. Files and pictures together are limited to 4 MiB per email, under Vercel's 4.5 MB request limit; adapter-node accepts only 512 kB by default, so the VPS needs `BODY_SIZE_LIMIT`.
 
 ## Environment variables
@@ -229,6 +231,10 @@ RESEND_API_KEY=…
 MAIL_FROM="Befisien CRM <info@befisien.com>"
 RESEND_WEBHOOK_SECRET=whsec_…              # Kotak Masuk: Resend webhook email.received → /api/email
 INBOX_FROM="Befisien <info@befisien.com>"   # sender of emails written in the CRM
+NEON_STORAGE_ACCESS_KEY_ID=…                # big email files: Neon bucket email-files (AWS_* of the branch)
+NEON_STORAGE_SECRET_ACCESS_KEY=…
+NEON_STORAGE_ENDPOINT=https://br-….storage….aws.neon.tech
+NEON_STORAGE_REGION=us-east-2
 TELEGRAM_BOT_TOKEN=…                     # from @BotFather
 TELEGRAM_WEBHOOK_SECRET=…
 TRIGGER_SECRET_KEY=…                     # the webhook queues "telegram-inbound"

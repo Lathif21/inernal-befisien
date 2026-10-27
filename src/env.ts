@@ -78,5 +78,24 @@ export const variables = defineEnvVars({
 	MAIL_FROM: {
 		description: 'Sender of app email, e.g. "Befisien CRM <info@befisien.com>"',
 		schema: optional
+	},
+	// Neon Object Storage, bucket email-files (P3-08 big files). The values are the branch's
+	// AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_ENDPOINT_URL_S3 / AWS_REGION from
+	// `neon env pull`, under other names because Vercel reserves the AWS_* ones.
+	NEON_STORAGE_ACCESS_KEY_ID: {
+		description: 'Neon storage access key id (AWS_ACCESS_KEY_ID of the branch)',
+		schema: optional
+	},
+	NEON_STORAGE_SECRET_ACCESS_KEY: {
+		description: 'Neon storage secret access key (AWS_SECRET_ACCESS_KEY of the branch)',
+		schema: optional
+	},
+	NEON_STORAGE_ENDPOINT: {
+		description: 'Neon storage S3 endpoint of the branch (AWS_ENDPOINT_URL_S3)',
+		schema: optional
+	},
+	NEON_STORAGE_REGION: {
+		description: 'Neon storage region, e.g. us-east-2 (AWS_REGION)',
+		schema: optional
 	}
 });

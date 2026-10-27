@@ -22,9 +22,19 @@
 		onfiles?: (files: File[]) => void;
 		/** After every change, for the size counter */
 		onchange?: () => void;
+		/** HTML to start from (a saved draft); read once when the editor is made */
+		content?: string;
 	};
 
-	let { id, labelledby, describedby, invalid = false, onfiles, onchange }: Props = $props();
+	let {
+		id,
+		labelledby,
+		describedby,
+		invalid = false,
+		onfiles,
+		onchange,
+		content = ''
+	}: Props = $props();
 
 	let element: HTMLDivElement;
 	let imageInput: HTMLInputElement;
@@ -91,6 +101,7 @@
 	onMount(() => {
 		editor = new Editor({
 			element,
+			content: content || undefined,
 			extensions: [
 				StarterKit.configure({
 					heading: { levels: [2, 3] },

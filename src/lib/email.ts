@@ -348,10 +348,16 @@ export function signatureHtml(s: Signature) {
  * under it (like Gmail). `body` is the editor's HTML after cleanEmailHtml; `text` (the plain-text
  * part, also what the thread stores) is made from it.
  */
-export function composeEmail(input: { body: string; signature: Signature; parent?: ReplyParent }) {
+export function composeEmail(input: {
+	body: string;
+	signature: Signature;
+	parent?: ReplyParent;
+	/** A block between the message and the signature (the "File besar" download links) */
+	extra?: { html: string; text: string };
+}) {
 	const body = input.body.trim();
 	const bodyText = htmlToText(body.replace(/<img\b[^>]*>/gi, '<p>[gambar]</p>'));
-	const parts = [bodyText, signatureText(input.signature)];
+	const parts = [bodyText, input.extra?.text ?? '', signatureText(input.signature)].filter(Boolean);
 	if (input.parent) parts.push(`${quoteIntro(input.parent)}\n${quoteLines(input.parent.text)}`);
 	const text = parts.join('\n\n');
 
@@ -361,6 +367,7 @@ export function composeEmail(input: { body: string; signature: Signature; parent
 	const html =
 		`<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:${INK};max-width:640px">` +
 		body +
+		(input.extra?.html ?? '') +
 		signatureHtml(input.signature) +
 		quote +
 		`</div>`;

@@ -1,7 +1,7 @@
 // Email (P3-08, page /inbox): store mail from Resend Inbound, thread it, match it to a client, send
 // replies. Relative imports only: services are shared with Trigger.dev tasks.
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import {
 	attachmentExpired,
 	composeEmail,
@@ -23,16 +23,33 @@ import {
 	type EmailBrand,
 	type Signature
 } from '../../email';
+import { TRASH_DAYS } from '../../email-draft';
+import {
+	EMAIL_ATTACH_BUDGET,
+	EMAIL_FILE_LINK_DAYS,
+	fileLinksHtml,
+	fileLinksText,
+	planFiles
+} from '../../email-files';
 import { forwardHtml, forwardSubject, forwardText } from '../../email-forward';
 import { phoneDisplay } from '../../format';
 import { contactSchema } from '../../schemas/contact';
 import type { DbOrTx } from '../db/client';
-import { client, contact, emailMessage, user, type EmailAttachment } from '../db/schema/index';
+import {
+	client,
+	contact,
+	emailFile,
+	emailMessage,
+	user,
+	type EmailAttachment
+} from '../db/schema/index';
 import { cleanEmailHtml, embedImages, isEmptyBody } from '../email-html';
 import type { OutgoingMail } from '../notify/email';
 import type { ReceivedEmail } from '../notify/resend-inbound';
 import { escapeHtml } from '../notify/telegram';
+import type { FileStorage } from '../storage/files';
 import { logActivity } from './activity';
+import { newFileToken, uploadedFiles } from './email-files';
 import { getCompanyProfile } from './company';
 import { saveContact } from './contacts';
 import { ServiceError } from './errors';
@@ -184,6 +201,8 @@ export async function receiveEmail(db: DbOrTx, input: IncomingEmail) {
 		const parentIds = [...(input.inReplyTo ? [input.inReplyTo] : []), ...input.references];
 		const threadId =
 			(await findThread(tx, parentIds, { subject: input.subject, from: input.from.email })) ?? id;
+		// A new message brings a conversation in Sampah back, like a mail app
+		if (threadId !== id) await restoreThread(tx, threadId);
 		const match = await contactByEmail(tx, [input.from.email]);
 		const clientId = match?.clientId ?? (threadId !== id ? await threadClient(tx, threadId) : null);
 		const snippet = snippetOf(input.text);
@@ -250,6 +269,11 @@ export type SendInput = {
 	 * chosen ones of its attachments fetched again from Resend. The body may then be empty.
 	 */
 	forward?: { emailId: string; attachmentIds: string[] };
+	/**
+	 * email_file ids uploaded to the bucket in the drawer: attached while they fit in
+	 * EMAIL_ATTACH_BUDGET, the rest sent as download links (/f/<token>, EMAIL_FILE_LINK_DAYS)
+	 */
+	uploads?: string[];
 };
 
 /** Resend refuses an email above 40 MB after base64; forwarded files stay well under that */
@@ -265,7 +289,22 @@ export type AttachmentSource = {
 };
 
 /** A file attached in the drawer */
-export type SendFile = { filename: string; contentType: string; data: Uint8Array };
+export type SendFile = {
+	filename: string;
+	contentType: string;
+	data: Uint8Array;
+	/** An upload from the bucket (email_file) */
+	fileId?: string;
+};
+
+function needStorage(deps: SendDeps): FileStorage {
+	if (!deps.storage)
+		throw new ServiceError(
+			'Penyimpanan file belum diatur (NEON_STORAGE_*). Kirim tanpa lampiran atau hubungi admin.',
+			'files'
+		);
+	return deps.storage;
+}
 
 /** "Laporan Q3.pdf" as a safe attachment name (no path, quotes or line breaks) */
 const fileName = (raw: string) =>
@@ -304,6 +343,10 @@ export type SendDeps = {
 	send: (mail: OutgoingMail) => Promise<string>;
 	/** The bytes of a stored attachment, fetched from Resend (forwarding only) */
 	loadAttachment?: (source: AttachmentSource) => Promise<Uint8Array>;
+	/** The bucket for uploads (null when NEON_STORAGE_* is not set) */
+	storage?: FileStorage | null;
+	/** Public base URL of the app, for download links (https://befisien-crm.vercel.app) */
+	appUrl?: string;
 };
 
 /** The email to forward and the bytes of the attachments chosen to go with it */
@@ -412,6 +455,44 @@ export async function sendEmailMessage(
 	if (input.threadId && !forwarded && !parent)
 		throw new ServiceError('Percakapan email tidak ditemukan.');
 
+	// Uploads: attached while they fit next to the pictures and forwarded files, the rest as links
+	const uploads = input.uploads?.length
+		? await uploadedFiles(db, needStorage(deps), input.uploads)
+		: [];
+	if (files.length + uploads.length > EMAIL_MAX_FILES)
+		throw new ServiceError(`Maksimal ${EMAIL_MAX_FILES} lampiran per email.`, 'files');
+	const used = uploadSize(
+		body,
+		[...files, ...(forwarded?.files ?? [])].map((f) => ({ size: f.data.byteLength }))
+	);
+	const plan = planFiles(uploads, Math.max(0, EMAIL_ATTACH_BUDGET - used));
+	const uploadedAttachments: SendFile[] = await Promise.all(
+		plan.attach.map(async (r) => ({
+			filename: r.filename,
+			contentType: r.contentType,
+			data: await needStorage(deps).read(r.key),
+			fileId: r.id
+		}))
+	);
+	const fileExpiry = new Date(Date.now() + EMAIL_FILE_LINK_DAYS * 86_400_000);
+	// The link's code is saved before sending, so the email never carries a link that does not work
+	const linked = await Promise.all(
+		plan.link.map(async (r) => {
+			if (!deps.appUrl) throw new Error('appUrl is not configured for download links');
+			const token = r.token ?? newFileToken();
+			const expiresAt = r.expiresAt ?? fileExpiry;
+			if (!r.token)
+				await db.update(emailFile).set({ token, expiresAt }).where(eq(emailFile.id, r.id));
+			return { row: r, expiresAt, url: `${deps.appUrl}/f/${token}` };
+		})
+	);
+	const fileLinks = linked.map((l) => ({
+		filename: l.row.filename,
+		size: l.row.size,
+		url: l.url
+	}));
+	const linksUntil = linked[0]?.expiresAt ?? fileExpiry;
+
 	const subject = forwarded
 		? input.subject.trim() || forwardSubject(forwarded.message.subject)
 		: parent
@@ -426,6 +507,12 @@ export async function sendEmailMessage(
 					from: formatAddress({ name: parent.fromName, email: parent.fromEmail }),
 					sentAt: parent.sentAt,
 					text: parent.text ?? (parent.html ? htmlToText(parent.html) : '')
+				}
+			: undefined,
+		extra: fileLinks.length
+			? {
+					html: fileLinksHtml(fileLinks, linksUntil),
+					text: fileLinksText(fileLinks, linksUntil)
 				}
 			: undefined
 	});
@@ -446,7 +533,7 @@ export async function sendEmailMessage(
 		html = `${html}${forwardHtml(original)}`;
 	}
 	// Forwarded files come from Resend, not from the browser: they don't count toward the upload limit
-	const allFiles = [...files, ...(forwarded?.files ?? [])];
+	const allFiles = [...files, ...uploadedAttachments, ...(forwarded?.files ?? [])];
 	const domain = deps.from.email.split('@')[1];
 	const messageId = `<${randomUUID()}@${domain}>`;
 	const references = parent ? replyReferences(parent) : [];
@@ -474,13 +561,25 @@ export async function sendEmailMessage(
 			...inline.images
 		]
 	});
-	const attachments: EmailAttachment[] = allFiles.map((f, i) => ({
-		id: `out-${i + 1}`,
-		filename: f.filename,
-		contentType: f.contentType || 'application/octet-stream',
-		size: f.data.byteLength,
-		inline: false
-	}));
+	const attachments: EmailAttachment[] = [
+		...allFiles.map((f, i) => ({
+			id: `out-${i + 1}`,
+			filename: f.filename,
+			contentType: f.contentType || 'application/octet-stream',
+			size: f.data.byteLength,
+			inline: false,
+			...(f.fileId ? { fileId: f.fileId } : {})
+		})),
+		...linked.map((l, i) => ({
+			id: `link-${i + 1}`,
+			filename: l.row.filename,
+			contentType: l.row.contentType,
+			size: l.row.size,
+			inline: false,
+			fileId: l.row.id,
+			link: true
+		}))
+	];
 
 	return db.transaction(async (tx) => {
 		const [existing] = await tx
@@ -528,7 +627,34 @@ export async function sendEmailMessage(
 			readAt: now,
 			sentAt: now
 		});
-		if (parent) await markThread(tx, threadId, true);
+		// The uploads now belong to this email; attached ones are kept as long as links would be
+		if (uploads.length)
+			await tx
+				.update(emailFile)
+				.set({ status: 'sent', emailId: id })
+				.where(
+					inArray(
+						emailFile.id,
+						uploads.map((u) => u.id)
+					)
+				);
+		if (plan.attach.length)
+			await tx
+				.update(emailFile)
+				.set({ expiresAt: fileExpiry })
+				.where(
+					and(
+						inArray(
+							emailFile.id,
+							plan.attach.map((u) => u.id)
+						),
+						isNull(emailFile.expiresAt)
+					)
+				);
+		if (parent) {
+			await markThread(tx, threadId, true);
+			await restoreThread(tx, threadId);
+		}
 		if (clientId)
 			await logActivity(tx, {
 				clientId,
@@ -546,21 +672,17 @@ export async function sendEmailMessage(
 	});
 }
 
-export const INBOX_FILTERS = ['all', 'unread', 'client', 'none', 'sent'] as const;
+export const INBOX_FILTERS = ['all', 'unread', 'client', 'none', 'sent', 'trash'] as const;
 export type InboxFilter = (typeof INBOX_FILTERS)[number];
 
-/** Threads, newest activity first, with counts for the filter chips */
-export async function listThreads(
-	db: DbOrTx,
-	{
-		filter = 'all',
-		q,
-		page = 1,
-		pageSize = INBOX_PAGE_SIZE
-	}: { filter?: InboxFilter; q?: string; page?: number; pageSize?: number } = {}
-) {
-	const like = q ? `%${q.replace(/[%_\\]/g, (c) => `\\${c}`)}%` : null;
-	const t = db
+const searchPattern = (q?: string) => (q ? `%${q.replace(/[%_\\]/g, (c) => `\\${c}`)}%` : null);
+
+/**
+ * One row per thread: the live ones, or the ones in Sampah (a thread moves there whole), with an
+ * optional search on their messages
+ */
+function threadSummary(db: DbOrTx, trash: boolean, like: string | null) {
+	return db
 		.select({
 			threadId: emailMessage.threadId,
 			lastAt: sql<Date>`max(${emailMessage.sentAt})`.as('last_at'),
@@ -574,44 +696,33 @@ export async function listThreads(
 				string | null
 			>`(array_agg(${emailMessage.clientId} order by ${emailMessage.sentAt} desc) filter (where ${emailMessage.clientId} is not null))[1]`.as(
 				'thread_client_id'
-			)
+			),
+			deletedAt: sql<Date | null>`max(${emailMessage.deletedAt})`.as('thread_deleted_at')
 		})
 		.from(emailMessage)
 		.where(
-			like
-				? or(
-						ilike(emailMessage.subject, like),
-						ilike(emailMessage.fromEmail, like),
-						ilike(emailMessage.fromName, like),
-						ilike(emailMessage.snippet, like)
-					)
-				: undefined
+			and(
+				trash ? isNotNull(emailMessage.deletedAt) : isNull(emailMessage.deletedAt),
+				like
+					? or(
+							ilike(emailMessage.subject, like),
+							ilike(emailMessage.fromEmail, like),
+							ilike(emailMessage.fromName, like),
+							ilike(emailMessage.snippet, like)
+						)
+					: undefined
+			)
 		)
 		.groupBy(emailMessage.threadId)
 		.as('t');
+}
 
-	const where = {
-		all: undefined,
-		unread: sql`${t.unread} > 0`,
-		client: sql`${t.clientId} is not null`,
-		none: sql`${t.clientId} is null`,
-		sent: sql`${t.hasOut}`
-	}[filter];
-
-	const [threads, [counts]] = await Promise.all([
-		db
-			.select({
-				threadId: t.threadId,
-				lastAt: t.lastAt,
-				count: t.count,
-				unread: t.unread,
-				clientId: t.clientId
-			})
-			.from(t)
-			.where(where)
-			.orderBy(desc(t.lastAt))
-			.limit(pageSize)
-			.offset((Math.max(1, page) - 1) * pageSize),
+/** Counts for the filter chips, Sampah included; a search narrows them like the list */
+export async function threadCounts(db: DbOrTx, q?: string) {
+	const like = searchPattern(q);
+	const t = threadSummary(db, false, like);
+	const trashed = threadSummary(db, true, like);
+	const [[counts], [inTrash]] = await Promise.all([
 		db
 			.select({
 				all: sql<number>`count(*)::int`,
@@ -620,7 +731,49 @@ export async function listThreads(
 				none: sql<number>`(count(*) filter (where ${t.clientId} is null))::int`,
 				sent: sql<number>`(count(*) filter (where ${t.hasOut}))::int`
 			})
+			.from(t),
+		db.select({ n: sql<number>`count(*)::int` }).from(trashed)
+	]);
+	return { ...counts, trash: inTrash?.n ?? 0 };
+}
+
+/** Threads, newest activity first, with counts for the filter chips */
+export async function listThreads(
+	db: DbOrTx,
+	{
+		filter = 'all',
+		q,
+		page = 1,
+		pageSize = INBOX_PAGE_SIZE
+	}: { filter?: InboxFilter; q?: string; page?: number; pageSize?: number } = {}
+) {
+	const t = threadSummary(db, filter === 'trash', searchPattern(q));
+
+	const where = {
+		all: undefined,
+		unread: sql`${t.unread} > 0`,
+		client: sql`${t.clientId} is not null`,
+		none: sql`${t.clientId} is null`,
+		sent: sql`${t.hasOut}`,
+		trash: undefined
+	}[filter];
+
+	const [threads, counts] = await Promise.all([
+		db
+			.select({
+				threadId: t.threadId,
+				lastAt: t.lastAt,
+				count: t.count,
+				unread: t.unread,
+				clientId: t.clientId,
+				deletedAt: t.deletedAt
+			})
 			.from(t)
+			.where(where)
+			.orderBy(desc(t.lastAt))
+			.limit(pageSize)
+			.offset((Math.max(1, page) - 1) * pageSize),
+		threadCounts(db, q)
 	]);
 
 	const ids = threads.map((r) => r.threadId);
@@ -654,6 +807,7 @@ export async function listThreads(
 		rows: threads.map((r) => ({
 			...r,
 			lastAt: new Date(r.lastAt),
+			deletedAt: r.deletedAt ? new Date(r.deletedAt) : null,
 			clientName: r.clientId ? (clientName.get(r.clientId) ?? null) : null,
 			last: byThread.get(r.threadId)!
 		})),
@@ -686,6 +840,7 @@ export async function getThread(db: DbOrTx, threadId: string) {
 			readAt: emailMessage.readAt,
 			sentAt: emailMessage.sentAt,
 			clientId: emailMessage.clientId,
+			deletedAt: emailMessage.deletedAt,
 			userName: user.name
 		})
 		.from(emailMessage)
@@ -700,7 +855,9 @@ export async function getThread(db: DbOrTx, threadId: string) {
 				.from(client)
 				.where(eq(client.id, clientId))
 		: [];
-	return { threadId, messages, client: c ?? null };
+	// A thread moves to Sampah whole: any message's date is the thread's
+	const deletedAt = messages.find((m) => m.deletedAt)?.deletedAt ?? null;
+	return { threadId, messages, client: c ?? null, deletedAt };
 }
 
 export type ThreadMessage = NonNullable<Awaited<ReturnType<typeof getThread>>>['messages'][number];
@@ -755,8 +912,62 @@ export async function unreadThreadCount(db: DbOrTx) {
 	const [r] = await db
 		.select({ n: sql<number>`count(distinct ${emailMessage.threadId})::int` })
 		.from(emailMessage)
-		.where(and(eq(emailMessage.direction, 'in'), isNull(emailMessage.readAt)));
+		.where(
+			and(
+				eq(emailMessage.direction, 'in'),
+				isNull(emailMessage.readAt),
+				isNull(emailMessage.deletedAt)
+			)
+		);
 	return r?.n ?? 0;
+}
+
+/**
+ * Hapus: the whole conversation moves to Sampah. It stays readable there and on the client
+ * timeline, and is deleted for good after TRASH_DAYS (purgeTrash).
+ */
+export async function trashThread(db: DbOrTx, threadId: string, userId: string) {
+	const rows = await db
+		.update(emailMessage)
+		.set({ deletedAt: new Date(), deletedBy: userId })
+		.where(and(eq(emailMessage.threadId, threadId), isNull(emailMessage.deletedAt)))
+		.returning({ id: emailMessage.id });
+	if (!rows.length)
+		throw new ServiceError('Percakapan email tidak ditemukan atau sudah di Sampah.');
+}
+
+/** Pulihkan from Sampah (also when a new message arrives in the conversation) */
+export async function restoreThread(db: DbOrTx, threadId: string) {
+	await db
+		.update(emailMessage)
+		.set({ deletedAt: null, deletedBy: null })
+		.where(and(eq(emailMessage.threadId, threadId), isNotNull(emailMessage.deletedAt)));
+}
+
+/**
+ * Hapus permanen, only from Sampah. The timeline entries stay (they record what happened); uploaded
+ * files keep their own expiry and are removed by the nightly cleanup.
+ */
+export async function deleteThreadForever(db: DbOrTx, threadId: string) {
+	const rows = await db
+		.delete(emailMessage)
+		.where(and(eq(emailMessage.threadId, threadId), isNotNull(emailMessage.deletedAt)))
+		.returning({ id: emailMessage.id });
+	if (!rows.length) throw new ServiceError('Percakapan ini tidak ada di Sampah.');
+}
+
+/** Nightly: conversations in Sampah longer than TRASH_DAYS; `all` = Kosongkan Sampah now */
+export async function purgeTrash(db: DbOrTx, { now = new Date(), all = false } = {}) {
+	const before = new Date(now.getTime() - TRASH_DAYS * 86_400_000);
+	const rows = await db
+		.delete(emailMessage)
+		.where(
+			all
+				? isNotNull(emailMessage.deletedAt)
+				: and(isNotNull(emailMessage.deletedAt), lt(emailMessage.deletedAt, before))
+		)
+		.returning({ threadId: emailMessage.threadId });
+	return { threads: new Set(rows.map((r) => r.threadId)).size, messages: rows.length };
 }
 
 /**
@@ -843,7 +1054,9 @@ export async function attachmentSource(db: DbOrTx, emailId: string, attachmentId
 		direction: m.direction,
 		sentAt: m.sentAt,
 		filename: file.filename,
-		nth: m.attachments.slice(0, index).filter((a) => a.filename === file.filename).length
+		nth: m.attachments.slice(0, index).filter((a) => a.filename === file.filename).length,
+		/** Uploaded through the bucket: downloaded from there */
+		fileId: file.fileId ?? null
 	};
 }
 

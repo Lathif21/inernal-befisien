@@ -1,7 +1,17 @@
 // Email inbox (P3-08): mail received through Resend Inbound and replies sent from the CRM.
 // Relative imports only: shared with Trigger.dev.
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+	bigint,
+	boolean,
+	check,
+	index,
+	jsonb,
+	pgTable,
+	text,
+	timestamp,
+	uuid
+} from 'drizzle-orm/pg-core';
 import { user } from './auth';
 import { client, contact } from './crm';
 
@@ -17,7 +27,47 @@ export type EmailAttachment = {
 	size: number;
 	/** Inline images (signature logos) are not listed as attachments */
 	inline: boolean;
+	/** Uploaded through the bucket (email_file): downloaded from there, not from Resend */
+	fileId?: string;
+	/** Too big to attach: the email carried a download link (/f/<token>) instead */
+	link?: boolean;
 };
+
+export const EMAIL_FILE_STATUSES = ['uploading', 'sent', 'deleted'] as const;
+
+/**
+ * A file uploaded in the write / reply drawer straight to the Neon bucket `email-files`. Sent as an
+ * attachment (≤ 25 MB together) or as a download link `/f/<token>` until `expires_at`; the daily
+ * cleanup task deletes the object after that, and unsent uploads after a day.
+ */
+export const emailFile = pgTable(
+	'email_file',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		/** Object key in the bucket */
+		key: text('key').notNull().unique(),
+		filename: text('filename').notNull(),
+		contentType: text('content_type').notNull(),
+		/** Bytes (what the browser said; checked against the bucket when sent) */
+		size: bigint('size', { mode: 'number' }).notNull(),
+		status: text('status', { enum: EMAIL_FILE_STATUSES }).notNull().default('uploading'),
+		/** The email it went out with */
+		emailId: uuid('email_id').references(() => emailMessage.id, { onDelete: 'set null' }),
+		/** Attached to a saved draft: kept until the draft is sent or thrown away */
+		draftId: uuid('draft_id').references(() => emailDraft.id, { onDelete: 'set null' }),
+		/** Unguessable code in the download link */
+		token: text('token').unique(),
+		/** The link stops working and the object is deleted after this */
+		expiresAt: tstz('expires_at'),
+		createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: tstz('created_at').defaultNow().notNull()
+	},
+	(t) => [
+		index('email_file_status_idx').on(t.status, t.expiresAt),
+		check('email_file_status', sql`${t.status} in ('uploading', 'sent', 'deleted')`),
+		check('email_file_size_positive', sql`${t.size} > 0`)
+	]
+);
 
 export const emailMessage = pgTable(
 	'email_message',
@@ -67,6 +117,9 @@ export const emailMessage = pgTable(
 		readAt: tstz('read_at'),
 		/** The Date header (or when Resend received it) */
 		sentAt: tstz('sent_at').notNull(),
+		/** In Sampah since (the whole thread at once); deleted for good after TRASH_DAYS */
+		deletedAt: tstz('deleted_at'),
+		deletedBy: text('deleted_by').references(() => user.id, { onDelete: 'set null' }),
 		createdAt: tstz('created_at').defaultNow().notNull()
 	},
 	(t) => [
@@ -77,6 +130,63 @@ export const emailMessage = pgTable(
 		index('email_message_unread_idx')
 			.on(t.threadId)
 			.where(sql`${t.direction} = 'in' and ${t.readAt} is null`),
+		index('email_message_deleted_idx')
+			.on(t.deletedAt)
+			.where(sql`${t.deletedAt} is not null`),
 		check('email_message_direction', sql`${t.direction} in ('in', 'out')`)
+	]
+);
+
+export const EMAIL_DRAFT_STATUSES = ['draft', 'scheduled', 'sending', 'failed'] as const;
+
+/**
+ * An email being written (saved by the drawer while typing) or waiting to be sent at
+ * `scheduled_at` by the Trigger.dev task `email-scheduled-send`. Only its writer sees it. Sent =
+ * the row is deleted and the email is in email_message.
+ */
+export const emailDraft = pgTable(
+	'email_draft',
+	{
+		/** Made by the drawer when it opens, so every save of the same email updates one row */
+		id: uuid('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** A reply in this thread (the thread's first message id); null = a new email */
+		threadId: uuid('thread_id').references(() => emailMessage.id, { onDelete: 'cascade' }),
+		/** Teruskan: this email goes under the message */
+		forwardEmailId: uuid('forward_email_id').references(() => emailMessage.id, {
+			onDelete: 'set null'
+		}),
+		/** Attachment ids of the forwarded email ticked to go along */
+		forwardFiles: text('forward_files')
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		/** As typed (checked when it is sent or scheduled, not when it is saved) */
+		to: text('to').notNull().default(''),
+		cc: text('cc').notNull().default(''),
+		subject: text('subject').notNull().default(''),
+		/** The editor's HTML, pictures as `data:` sources */
+		body: text('body').notNull().default(''),
+		/** First words of the body for the Draf list */
+		snippet: text('snippet').notNull().default(''),
+		status: text('status', { enum: EMAIL_DRAFT_STATUSES }).notNull().default('draft'),
+		scheduledAt: tstz('scheduled_at'),
+		/** The delayed Trigger.dev run, cancelled when the schedule is */
+		runId: text('run_id'),
+		/** Why a scheduled send failed (Indonesian, shown in Terjadwal) */
+		error: text('error'),
+		createdAt: tstz('created_at').defaultNow().notNull(),
+		updatedAt: tstz('updated_at').defaultNow().notNull()
+	},
+	(t) => [
+		index('email_draft_user_idx').on(t.userId, t.status, t.updatedAt.desc()),
+		index('email_draft_thread_idx').on(t.threadId),
+		check('email_draft_status', sql`${t.status} in ('draft', 'scheduled', 'sending', 'failed')`),
+		check(
+			'email_draft_scheduled_at',
+			sql`${t.status} not in ('scheduled', 'sending') or ${t.scheduledAt} is not null`
+		)
 	]
 );

@@ -3,8 +3,10 @@ import { z } from 'zod';
 import { emailLinkSchema } from '#lib/schemas/email.ts';
 import { attachmentExpired, RESEND_RETENTION_DAYS, signatureHtml } from '#lib/email.ts';
 import { db } from '#lib/server/db/index.ts';
-import { sendEmailAction } from '#lib/server/email-actions.ts';
-import { inboxFrom, resendKey, sendDeps } from '#lib/server/email-config.ts';
+import { mailboxActions, sendEmailAction, uploadFileAction } from '#lib/server/email-actions.ts';
+import { EMAIL_FILE_LINK_DAYS } from '#lib/email-files.ts';
+import { fileStorage, inboxFrom, resendKey, sendDeps } from '#lib/server/email-config.ts';
+import { fileForDownload } from '#lib/server/services/email-files.ts';
 import { runSimpleAction } from '#lib/server/forms.ts';
 import { requireUser } from '#lib/server/guards.ts';
 import {
@@ -13,6 +15,8 @@ import {
 	pickSentAttachment
 } from '#lib/server/notify/resend-inbound.ts';
 import { listDealClients } from '#lib/server/services/deals.ts';
+import { threadDrafts } from '#lib/server/services/email-drafts.ts';
+import { triggerEnabled } from '#lib/server/trigger.ts';
 import {
 	attachmentSource,
 	emailSignature,
@@ -32,9 +36,10 @@ function threadIdOr404(raw: string) {
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const user = requireUser(locals);
 	const threadId = threadIdOr404(params.id);
-	const [thread, signature] = await Promise.all([
+	const [thread, signature, drafts] = await Promise.all([
 		getThread(db, threadId),
-		emailSignature(db, user.id, sendDeps)
+		emailSignature(db, user.id, sendDeps),
+		threadDrafts(db, user.id, threadId)
 	]);
 	if (!thread) error(404, 'Email tidak ditemukan.');
 	// Opening a thread reads it; the page refreshes the sidebar badge afterwards
@@ -45,12 +50,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		wasUnread,
 		reply: replyDefaults(thread.messages, inboxFrom.email),
 		signature: signatureHtml(signature),
-		clients: thread.client ? [] : await listDealClients(db)
+		clients: thread.client ? [] : await listDealClients(db),
+		// The writer's replies here that are not sent yet (P3-09)
+		drafts,
+		canSchedule: triggerEnabled()
 	};
 };
 
 export const actions: Actions = {
 	send: sendEmailAction,
+	upload: uploadFileAction,
+	...mailboxActions,
 
 	link: async ({ request, params, locals }) => {
 		const user = requireUser(locals);
@@ -81,6 +91,17 @@ export const actions: Actions = {
 		if (!emailId.success || !attachmentId.success) error(404, 'Lampiran tidak ditemukan.');
 		const source = await attachmentSource(db, emailId.data, attachmentId.data);
 		if (!source) error(404, 'Lampiran tidak ditemukan.');
+		// Uploaded in the drawer: from the bucket, for as long as the file is kept
+		if (source.fileId) {
+			const file = await fileForDownload(db, source.fileId);
+			if (!file || !fileStorage)
+				error(
+					410,
+					`Lampiran sudah tidak tersedia: file disimpan ${EMAIL_FILE_LINK_DAYS} hari setelah dikirim.`
+				);
+			const link = await fileStorage.downloadUrl(file.key, file.filename);
+			redirect(303, link, { external: [new URL(link).origin] });
+		}
 		if (attachmentExpired(source.sentAt))
 			error(
 				410,

@@ -21,7 +21,8 @@
 		"user:create": "tsx scripts/create-user.ts",
 		"db:seed": "tsx scripts/seed.ts",
 		"ai:suggest": "tsx scripts/ai-suggest.ts",
-		"telegram:webhook": "tsx scripts/telegram-webhook.ts"
+		"telegram:webhook": "tsx scripts/telegram-webhook.ts",
+		"storage:cors": "tsx scripts/storage-cors.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
@@ -59,6 +60,8 @@
 		"#lib/*": "./src/lib/*"
 	},
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1157.0",
+		"@aws-sdk/s3-request-presigner": "^3.1157.0",
 		"@date-fns/tz": "^1.5.0",
 		"@fontsource-variable/plus-jakarta-sans": "^5.3.0",
 		"@fontsource/jetbrains-mono": "^5.3.0",

@@ -1,14 +1,19 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { goto, invalidate, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+	import Clock from '@lucide/svelte/icons/clock';
 	import Forward from '@lucide/svelte/icons/forward';
 	import Link2 from '@lucide/svelte/icons/link-2';
 	import MailOpen from '@lucide/svelte/icons/mail-open';
 	import Paperclip from '@lucide/svelte/icons/paperclip';
 	import Reply from '@lucide/svelte/icons/reply';
+	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+	import Send from '@lucide/svelte/icons/send';
+	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Avatar from '#lib/components/Avatar.svelte';
+	import Modal from '#lib/components/Modal.svelte';
 	import ComposeDrawer from '#lib/components/inbox/ComposeDrawer.svelte';
 	import EmailBody from '#lib/components/inbox/EmailBody.svelte';
 	import Topbar from '#lib/components/layout/Topbar.svelte';
@@ -19,6 +24,7 @@
 		parseAddress,
 		RESEND_RETENTION_DAYS
 	} from '#lib/email.ts';
+	import { sendAtLabel, trashPurgeDate } from '#lib/email-draft.ts';
 	import { forwardSubject } from '#lib/email-forward.ts';
 	import { refreshThenToast } from '#lib/enhance.ts';
 	import { dateID } from '#lib/format.ts';
@@ -57,6 +63,22 @@
 	};
 
 	const replyTo = $derived(data.reply.to ? label(data.reply.to.split(',')[0]) : '');
+
+	// P3-09: Balas carries on the writer's saved reply; scheduled ones are listed under the thread
+	const replyDraft = $derived(data.drafts.find((d) => d.status === 'draft') ?? null);
+	const waiting = $derived(data.drafts.filter((d) => d.status !== 'draft'));
+	let purging = $state(false);
+
+	/** Thread actions that leave the page: back to the list, then the toast */
+	const leaveTo =
+		(filter?: 'trash'): SubmitFunction =>
+		() =>
+		async ({ result }) => {
+			if (result.type === 'success') {
+				await goto(filter ? resolve(`inbox?filter=${filter}`) : resolve('inbox'));
+				toast.success(String(result.data?.done));
+			} else if (result.type === 'failure') toast.error(String(result.data?.error));
+		};
 </script>
 
 <Topbar title={subject}>
@@ -91,6 +113,15 @@
 				Hubungkan ke klien
 			</button>
 		{/if}
+		{#if !thread.deletedAt}
+			<form method="post" action="?/trash" use:enhance={leaveTo()}>
+				<input type="hidden" name="threadId" value={thread.threadId} />
+				<button type="submit" class="bf-btn bf-btn--ghost bf-btn--sm">
+					<Trash2 size={16} strokeWidth={2} />
+					Hapus
+				</button>
+			</form>
+		{/if}
 		{#if thread.messages.some((m) => m.direction === 'in')}
 			<form
 				method="post"
@@ -110,6 +141,34 @@
 			</form>
 		{/if}
 	</div>
+
+	{#if thread.deletedAt}
+		<div
+			class="flex flex-wrap items-center gap-3 rounded-card bg-danger-bg px-5 py-4 text-body text-ink"
+			role="status"
+		>
+			<p class="min-w-0 flex-1 font-semibold">
+				Percakapan ini ada di Sampah dan dihapus permanen pada {dateID(
+					trashPurgeDate(thread.deletedAt),
+					'long'
+				)}.
+			</p>
+			<form method="post" action="?/restore" use:enhance={refreshThenToast()}>
+				<input type="hidden" name="threadId" value={thread.threadId} />
+				<button type="submit" class="bf-btn bf-btn--secondary bf-btn--sm">
+					<RotateCcw size={16} strokeWidth={2} />
+					Pulihkan
+				</button>
+			</form>
+			<button
+				type="button"
+				class="bf-btn bf-btn--sm bg-danger-fill text-on-accent"
+				onclick={() => (purging = true)}
+			>
+				Hapus permanen
+			</button>
+		</div>
+	{/if}
 
 	{#if linking && !thread.client}
 		<form
@@ -218,23 +277,104 @@
 		{/each}
 	</ol>
 
-	<div class="flex justify-end">
+	{#if waiting.length}
+		<ul class="flex flex-col gap-3" aria-label="Balasan terjadwal">
+			{#each waiting as d (d.id)}
+				<li class="flex flex-wrap items-center gap-3 rounded-card bg-surface p-4">
+					<Clock size={18} strokeWidth={2} class="shrink-0 text-accent-ink" aria-hidden="true" />
+					<div class="min-w-0 flex-1">
+						<p class="font-bold text-ink">
+							{#if d.status === 'failed'}
+								Balasan gagal dikirim
+							{:else if d.status === 'sending'}
+								Balasan sedang dikirim
+							{:else}
+								Balasan terjadwal {d.scheduledAt ? sendAtLabel(d.scheduledAt) : ''} WIB
+							{/if}
+						</p>
+						{#if d.status === 'failed' && d.error}
+							<p class="text-small font-semibold text-danger">{d.error}</p>
+						{:else}
+							<p class="truncate text-small text-ink-3">Kepada: {d.to}</p>
+						{/if}
+					</div>
+					{#if d.status !== 'sending'}
+						<form
+							method="post"
+							action="?/unschedule"
+							use:enhance={() =>
+								async ({ result }) => {
+									if (result.type === 'success') {
+										await invalidateAll();
+										replying = true;
+									} else if (result.type === 'failure') toast.error(String(result.data?.error));
+								}}
+						>
+							<input type="hidden" name="draftId" value={d.id} />
+							<button type="submit" class="bf-btn bf-btn--secondary bf-btn--sm">Ubah</button>
+						</form>
+						{#if d.status === 'scheduled'}
+							<form method="post" action="?/unschedule" use:enhance={refreshThenToast()}>
+								<input type="hidden" name="draftId" value={d.id} />
+								<button type="submit" class="bf-btn bf-btn--ghost bf-btn--sm"
+									>Batalkan jadwal</button
+								>
+							</form>
+						{/if}
+						<form method="post" action="?/sendNow" use:enhance={refreshThenToast()}>
+							<input type="hidden" name="draftId" value={d.id} />
+							<button type="submit" class="bf-btn bf-btn--primary bf-btn--sm">
+								<Send size={14} strokeWidth={2} />
+								Kirim sekarang
+							</button>
+						</form>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	{/if}
+
+	<div class="flex flex-wrap items-center justify-end gap-3">
+		{#if replyDraft}
+			<p class="text-small text-ink-3">
+				Draf balasan tersimpan {dateID(replyDraft.updatedAt, 'datetime')}
+			</p>
+		{/if}
 		<button type="button" class="bf-btn bf-btn--primary" onclick={() => (replying = true)}>
 			<Reply size={18} strokeWidth={2} />
-			Balas
+			{replyDraft ? 'Lanjutkan balasan' : 'Balas'}
 		</button>
 	</div>
 </main>
 
+<Modal bind:open={purging} title="Hapus permanen?">
+	<p class="text-body text-ink-2">
+		Percakapan <b>{subject}</b> dihapus permanen dan tidak bisa dipulihkan. Timeline klien tetap mencatatnya.
+	</p>
+	{#snippet footer()}
+		<button type="button" class="bf-btn bf-btn--secondary" onclick={() => (purging = false)}
+			>Batal</button
+		>
+		<form method="post" action="?/deleteForever" use:enhance={leaveTo('trash')}>
+			<input type="hidden" name="threadId" value={thread.threadId} />
+			<button type="submit" class="bf-btn bg-danger-fill text-on-accent">Hapus permanen</button>
+		</form>
+	{/snippet}
+</Modal>
+
 <ComposeDrawer
 	bind:open={replying}
 	threadId={thread.threadId}
-	to={data.reply.to}
-	cc={data.reply.cc}
-	subject={data.reply.subject}
+	to={replyDraft?.to ?? data.reply.to}
+	cc={replyDraft?.cc ?? data.reply.cc}
+	subject={replyDraft?.subject || data.reply.subject}
 	description={replyTo ? `Membalas ${replyTo}` : undefined}
 	signature={data.signature}
+	draft={replyDraft}
+	canSchedule={data.canSchedule}
 	onsent={() => invalidateAll()}
+	onscheduled={() => invalidateAll()}
+	onchanged={() => invalidateAll()}
 />
 
 {#if forwarding}
@@ -246,6 +386,9 @@
 			email: forwarding.fromEmail
 		})}"
 		signature={data.signature}
+		canSchedule={data.canSchedule}
+		onscheduled={() => goto(resolve('inbox?filter=scheduled'))}
+		onchanged={() => invalidateAll()}
 		forward={{
 			emailId: forwarding.id,
 			attachments: forwarding.attachments.filter((a) => !a.inline),
