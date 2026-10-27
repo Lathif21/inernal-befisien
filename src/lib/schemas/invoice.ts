@@ -56,8 +56,17 @@ export const invoiceSchema = z
 
 export type InvoiceInput = z.infer<typeof invoiceSchema>;
 
-/** "Catat Pembayaran" on an invoice: becomes a paid income transaction linked to it (P2-07) */
+/**
+ * "Catat Pembayaran" on an invoice: a paid income transaction linked to it (P2-07). With
+ * `transactionId` it links an income row already in Keuangan instead of writing a new one.
+ */
 export const paymentSchema = z.object({
+	transactionId: z
+		.string()
+		.default('')
+		.refine((v) => v === '' || z.uuid().safeParse(v).success, {
+			message: 'Pilih transaksi dari daftar.'
+		}),
 	date: day('Pilih tanggal pembayaran.'),
 	amount: z.preprocess(
 		(v) => (v === '' || v === null || v === undefined ? undefined : Number(v)),

@@ -32,6 +32,8 @@ export const transactionSchema = z.object({
 	/** '' only for overhead categories (P2-08); services/transactions.ts checks it against the category */
 	clientId: uuidOrEmpty('Klien tidak valid.'),
 	projectId: uuidOrEmpty('Proyek tidak valid.'),
+	/** Income paying an invoice; '' = none (an edit with '' unlinks it) */
+	invoiceId: uuidOrEmpty('Invoice tidak valid.'),
 	categoryId: z
 		.string()
 		.refine((v) => z.uuid().safeParse(v).success, { message: 'Pilih kategori.' }),

@@ -117,13 +117,24 @@ export const actions: Actions = {
 		const id = uuid.safeParse(data.id);
 		const status = z.enum(['achieved', 'dropped', 'active']).safeParse(data.status);
 		if (!id.success || !status.success) return fail(400, { error: 'Data tidak valid.' });
+		// Dropping deletes the plan's open steps; the card may need a next step (next.* fields)
+		let next = null;
+		if (status.data === 'dropped' && data.withNext === 'yes') {
+			const parsed = stepSchema.safeParse(stepFieldsFrom(data, 'next.'));
+			if (!parsed.success)
+				return fail(400, {
+					error: 'Periksa langkah berikutnya.',
+					fields: fieldErrors(parsed.error.issues)
+				});
+			next = parsed.data;
+		}
 		const text = {
 			achieved: 'Rencana tercapai.',
-			dropped: 'Rencana dibatalkan.',
+			dropped: 'Rencana dibatalkan. Langkah terbukanya dihapus.',
 			active: 'Rencana aktif lagi.'
 		};
 		return runSimpleAction(
-			() => setPlanStatus(db, id.data, status.data, user.id),
+			() => setPlanStatus(db, id.data, status.data, user.id, next),
 			text[status.data]
 		);
 	},

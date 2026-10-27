@@ -208,4 +208,41 @@ describe.skipIf(!isDevDb)('strategy service (dev database)', { timeout: 90_000 }
 			expect((await listPlans(tx, { q: 'ZZ Strategi Status' })).total).toBe(0);
 		});
 	});
+
+	it('deletes the open steps of a dropped plan and keeps one open step on the card', async () => {
+		await inRollback(async (tx, userId) => {
+			const { dealId, planId } = await setup(tx, userId, 'ZZ Strategi Batal');
+			const done = await addPlanStep(tx, planId, step('Sudah', '2030-01-01'), userId);
+			await addPlanStep(tx, planId, step('Terbuka', '2030-02-01'), userId);
+			await completeAction(tx, done.id, {}, userId);
+			const [plan] = (await listPlans(tx, { q: 'ZZ Strategi Batal' })).plans;
+			expect(plan).toMatchObject({ openSteps: 1, cardOtherOpen: 1 }); // the deal's own first step
+
+			await setPlanStatus(tx, planId, 'dropped', userId);
+			const steps = await listCardSteps(tx, { dealId });
+			expect(steps.open.map((s) => s.title)).toEqual(['Langkah awal deal']);
+			expect(steps.done.map((s) => s.title)).toContain('Sudah');
+			expect(await attentionSteps(tx, { q: 'Terbuka' }, new Date('2030-03-01'))).toHaveLength(0);
+		});
+
+		await inRollback(async (tx, userId) => {
+			const { dealId, planId } = await setup(tx, userId, 'ZZ Strategi Batal Semua');
+			await addPlanStep(tx, planId, step('Satu-satunya', '2030-02-01'), userId);
+			// the deal's own step moves into the plan, so the plan holds every open step of the card
+			await tx.update(action).set({ planId }).where(eq(action.dealId, dealId));
+			await expect(setPlanStatus(tx, planId, 'dropped', userId)).rejects.toMatchObject({
+				field: 'next'
+			});
+		});
+	});
+
+	it('drops a plan that holds every open step only with a next step', async () => {
+		await inRollback(async (tx, userId) => {
+			const { dealId, planId } = await setup(tx, userId, 'ZZ Strategi Batal Lanjut');
+			await tx.update(action).set({ planId }).where(eq(action.dealId, dealId));
+			await setPlanStatus(tx, planId, 'dropped', userId, step('Telepon ulang', '2030-04-01'));
+			const { open } = await listCardSteps(tx, { dealId });
+			expect(open.map((s) => [s.title, s.planId])).toEqual([['Telepon ulang', null]]);
+		});
+	});
 });

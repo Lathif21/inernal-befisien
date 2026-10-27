@@ -14,6 +14,7 @@
 	import Topbar from '#lib/components/layout/Topbar.svelte';
 	import AddStepModal from '#lib/components/steps/AddStepModal.svelte';
 	import NextStepPrompt from '#lib/components/steps/NextStepPrompt.svelte';
+	import CancelPlanModal from '#lib/components/strategy/CancelPlanModal.svelte';
 	import PlanCard from '#lib/components/strategy/PlanCard.svelte';
 	import PlanFormDrawer from '#lib/components/strategy/PlanFormDrawer.svelte';
 	import StepRunModal from '#lib/components/strategy/StepRunModal.svelte';
@@ -26,7 +27,7 @@
 	} from '#lib/constants.ts';
 	import { dateID, dayKeyWib } from '#lib/format.ts';
 	import { nextActionState, nextActionWhen } from '#lib/next-action.ts';
-	import type { StrategyStep } from '#lib/server/services/plans.ts';
+	import type { PlanCardData, StrategyStep } from '#lib/server/services/plans.ts';
 	import { stepFields, stepValueOf, type StepValue } from '#lib/step-form.ts';
 	import { toast } from '#lib/toast.ts';
 	import type { PageProps } from './$types';
@@ -169,8 +170,24 @@
 		post('addPlanStep', { planId, ...stepFields(value) }).then(settle);
 	const moveStep = (id: string, direction: 'up' | 'down') =>
 		post('moveStep', { id, direction }).then(settle);
-	const planStatus = (id: string, status: 'achieved' | 'dropped') =>
-		post('planStatus', { id, status }).then(settle);
+	/** "Batalkan rencana" confirms first: it deletes the plan's open steps (and may need a next step) */
+	let cancelPlanOpen = $state(false);
+	let cancelPlan = $state<PlanCardData | null>(null);
+	function planStatus(plan: PlanCardData, status: 'achieved' | 'dropped') {
+		if (status === 'dropped') {
+			cancelPlan = plan;
+			cancelPlanOpen = true;
+			return;
+		}
+		post('planStatus', { id: plan.id, status }).then(settle);
+	}
+	const dropPlan = (next: StepValue | null) =>
+		post('planStatus', {
+			id: cancelPlan!.id,
+			status: 'dropped',
+			withNext: next ? 'yes' : '',
+			...(next ? stepFields(next, 'next.') : {})
+		}).then(settle);
 
 	// Step menu: "Ubah langkah" (modal) and "Hapus langkah" (confirm)
 	let editStepOpen = $state(false);
@@ -365,7 +382,7 @@
 						ondeletestep={openDeleteStep}
 						onrunstep={(s) => (runStepId = s.id)}
 						onedit={() => planDrawer?.openEdit(plan)}
-						onstatus={(status) => planStatus(plan.id, status)}
+						onstatus={(status) => planStatus(plan, status)}
 						onask={data.aiEnabled && data.aiSuggestionsOn ? () => askAi(plan.id) : undefined}
 					/>
 				{/each}
@@ -451,6 +468,13 @@
 	assignees={data.owners}
 	initial={editStep ? stepValueOf(editStep) : null}
 	onsubmit={saveEditStep}
+/>
+
+<CancelPlanModal
+	bind:open={cancelPlanOpen}
+	plan={cancelPlan}
+	assignees={data.owners}
+	onsubmit={dropPlan}
 />
 
 <ConfirmDialog

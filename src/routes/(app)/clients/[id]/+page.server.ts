@@ -30,6 +30,7 @@ import { getNextActions } from '#lib/server/services/actions.ts';
 import {
 	financeTotals,
 	listCategories,
+	listTxnInvoices,
 	listTransactions
 } from '#lib/server/services/transactions.ts';
 import { transactionActions } from '#lib/server/transaction-actions.ts';
@@ -102,22 +103,31 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	if (!client) error(404, 'Klien tidak ditemukan.');
 
 	const active = projects.filter((p) => p.stage !== 'done');
-	const [nextActions, transactions, categories, txnForm, suggestions, context, runnableSteps] =
-		await Promise.all([
-			getNextActions(db, { projectIds: active.map((p) => p.id) }),
-			finance
-				? listTransactions(
-						db,
-						{ clientId: id, q: q || undefined, type, from: period.from, to: period.to },
-						{ page }
-					)
-				: Promise.resolve(null),
-			finance ? listCategories(db) : Promise.resolve([]),
-			finance ? superValidate(zod4(transactionSchema)) : Promise.resolve(null),
-			tab === 'ringkasan' ? listOpenSuggestions(db, { clientId: id }) : Promise.resolve([]),
-			tab === 'ringkasan' ? getClientContext(db, id) : Promise.resolve(null),
-			tab === 'ringkasan' ? listRunnableSteps(db, id) : Promise.resolve([])
-		]);
+	const [
+		nextActions,
+		transactions,
+		categories,
+		invoices,
+		txnForm,
+		suggestions,
+		context,
+		runnableSteps
+	] = await Promise.all([
+		getNextActions(db, { projectIds: active.map((p) => p.id) }),
+		finance
+			? listTransactions(
+					db,
+					{ clientId: id, q: q || undefined, type, from: period.from, to: period.to },
+					{ page }
+				)
+			: Promise.resolve(null),
+		finance ? listCategories(db) : Promise.resolve([]),
+		finance ? listTxnInvoices(db, id) : Promise.resolve([]),
+		finance ? superValidate(zod4(transactionSchema)) : Promise.resolve(null),
+		tab === 'ringkasan' ? listOpenSuggestions(db, { clientId: id }) : Promise.resolve([]),
+		tab === 'ringkasan' ? getClientContext(db, id) : Promise.resolve(null),
+		tab === 'ringkasan' ? listRunnableSteps(db, id) : Promise.resolve([])
+	]);
 	const aiSettings = await getAiSettings(db);
 
 	return {
@@ -131,7 +141,9 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		totals,
 		tab,
 		finance:
-			transactions && txnForm ? { transactions, categories, txnForm, period, q, type } : null,
+			transactions && txnForm
+				? { transactions, categories, invoices, txnForm, period, q, type }
+				: null,
 		suggestions,
 		context,
 		runnableSteps,

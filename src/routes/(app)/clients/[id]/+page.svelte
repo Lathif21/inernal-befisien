@@ -848,6 +848,7 @@
 			categories={f.categories}
 			clients={[{ id: c.id, name: c.name, archived }]}
 			projects={data.projects.map((p) => ({ id: p.id, name: p.name, clientId: c.id }))}
+			invoices={f.invoices}
 			lockClient
 		/>
 	{:else}

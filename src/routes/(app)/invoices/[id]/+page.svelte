@@ -8,6 +8,7 @@
 	import Eye from '@lucide/svelte/icons/eye';
 	import Send from '@lucide/svelte/icons/send';
 	import Trash from '@lucide/svelte/icons/trash-2';
+	import Unlink from '@lucide/svelte/icons/unlink';
 	import Wallet from '@lucide/svelte/icons/wallet';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import InvoiceEditor from '#lib/components/invoices/InvoiceEditor.svelte';
@@ -30,6 +31,7 @@
 	let voidOpen = $state(false);
 	let payOpen = $state(false);
 	let removeOpen = $state(false);
+	let unlinkOpen = $state(false);
 	let removing = $state<(typeof data.payments.rows)[number] | null>(null);
 
 	async function savePayment(v: PaymentValue) {
@@ -192,6 +194,21 @@
 							<button
 								type="button"
 								class="bf-btn bf-btn--ghost bf-btn--sm"
+								aria-label="Lepas pembayaran {rupiah(p.amount)} tanggal {dateID(
+									p.date
+								)} dari invoice"
+								title="Lepas dari invoice (tetap ada di Keuangan)"
+								onclick={() => {
+									removing = p;
+									unlinkOpen = true;
+								}}
+							>
+								<Unlink size={15} strokeWidth={1.9} />
+							</button>
+							<button
+								type="button"
+								class="bf-btn bf-btn--ghost bf-btn--sm"
+								title="Hapus pembayaran"
 								aria-label="Hapus pembayaran {rupiah(p.amount)} tanggal {dateID(p.date)}"
 								onclick={() => {
 									removing = p;
@@ -206,7 +223,8 @@
 			{/if}
 			<p class="text-small text-ink-3">
 				Pembayaran juga tercatat sebagai pemasukan di
-				<a href={resolve('finance')} class="font-bold text-accent-ink">Keuangan</a>.
+				<a href={resolve('finance')} class="font-bold text-accent-ink">Keuangan</a>. Pemasukan yang
+				sudah ada di Keuangan bisa dihubungkan lewat Catat Pembayaran → Dari Keuangan.
 			</p>
 		</section>
 	{/if}
@@ -237,8 +255,20 @@
 	invoiceNumber={inv.number}
 	remaining={pay.remaining}
 	categories={data.categories}
+	linkable={data.linkable}
 	onsubmit={savePayment}
 />
+
+<ConfirmDialog
+	bind:open={unlinkOpen}
+	title="Lepas pembayaran dari invoice?"
+	action="?/unlinkPayment"
+	fields={{ id: removing?.id ?? '' }}
+	confirmLabel="Lepas dari invoice"
+>
+	Pembayaran {removing ? rupiah(removing.amount) : ''} tidak lagi dihitung untuk {inv.number},
+	tetapi tetap tercatat di Keuangan. Status invoice dihitung ulang.
+</ConfirmDialog>
 
 <ConfirmDialog
 	bind:open={removeOpen}

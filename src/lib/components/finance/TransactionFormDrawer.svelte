@@ -17,7 +17,9 @@
 		type TxnType
 	} from '#lib/constants.ts';
 	import { dayKeyWib, rupiah } from '#lib/format.ts';
+	import { PAYABLE_INVOICE_STATUSES } from '#lib/invoice.ts';
 	import type { FormMessage } from '#lib/schemas/message.ts';
+	import type { TxnInvoice } from '#lib/server/services/transactions.ts';
 	import { FORM_TXN_STATUSES, type TransactionInput } from '#lib/schemas/transaction.ts';
 	import { toast } from '#lib/toast.ts';
 
@@ -30,6 +32,9 @@
 		/** null for overhead costs */
 		clientId: string | null;
 		projectId: string | null;
+		/** The invoice this income pays (P2-07) */
+		invoiceId?: string | null;
+		invoiceNumber?: string | null;
 		categoryId: string | null;
 		method: PaymentMethod | null;
 		description: string | null;
@@ -41,11 +46,20 @@
 		categories: { id: string; type: TxnType; name: string; isOverhead?: boolean }[];
 		clients: { id: string; name: string; archived: boolean }[];
 		projects: { id: string; name: string; clientId: string }[];
+		/** Sent invoices an income row can pay (listTxnInvoices) */
+		invoices?: TxnInvoice[];
 		/** On a client page the client is fixed */
 		lockClient?: boolean;
 	};
 
-	let { form: initial, categories, clients, projects, lockClient = false }: Props = $props();
+	let {
+		form: initial,
+		categories,
+		clients,
+		projects,
+		invoices = [],
+		lockClient = false
+	}: Props = $props();
 
 	let open = $state(false);
 	let editing = $state<EditableTransaction | null>(null);
@@ -92,6 +106,7 @@
 				amount: t.amount,
 				clientId: t.clientId ?? '',
 				projectId: t.projectId ?? '',
+				invoiceId: t.invoiceId ?? '',
 				categoryId: t.categoryId ?? '',
 				method: t.method ?? '',
 				description: t.description ?? '',
@@ -118,16 +133,38 @@
 	// New transactions only go to active clients; an edit keeps its (maybe archived) client
 	const clientOptions = $derived(clients.filter((c) => !c.archived || c.id === editing?.clientId));
 	const clientName = $derived(clients.find((c) => c.id === $form.clientId)?.name ?? '');
+	// Income from a client can pay one of its invoices; the one it already pays stays listed
+	const canLink = $derived($form.type === 'income' && !overhead && !!$form.clientId);
+	const clientInvoices = $derived(
+		invoices.filter(
+			(i) =>
+				i.clientId === $form.clientId &&
+				((PAYABLE_INVOICE_STATUSES as readonly string[]).includes(i.status) ||
+					i.id === editing?.invoiceId)
+		)
+	);
+	const invoiceLabel = (i: TxnInvoice) => {
+		const left = i.total - i.pph23Amount - i.paid;
+		return `${i.number} · ${left > 0 ? `sisa ${rupiah(left)}` : 'lunas'}`;
+	};
 
 	function setType(t: TxnType) {
 		if ($form.type === t) return;
 		$form.type = t;
-		// categories belong to one direction
+		// categories belong to one direction; only income pays an invoice
 		$form.categoryId = '';
+		$form.invoiceId = '';
 	}
 	function setClient(id: string) {
 		$form.clientId = id;
 		if (!projects.some((p) => p.id === $form.projectId && p.clientId === id)) $form.projectId = '';
+		if (!invoices.some((i) => i.id === $form.invoiceId && i.clientId === id)) $form.invoiceId = '';
+	}
+	function setInvoice(id: string) {
+		$form.invoiceId = id;
+		// a payment usually belongs to the invoice's project
+		const project = invoices.find((i) => i.id === id)?.projectId;
+		if (project && !$form.projectId) $form.projectId = project;
 	}
 </script>
 
@@ -281,6 +318,34 @@
 				{/snippet}
 			</Field>
 		</div>
+
+		{#if canLink && (clientInvoices.length || $form.invoiceId)}
+			<Field
+				label="Invoice"
+				name="invoiceId"
+				errors={$errors.invoiceId}
+				hint={$form.invoiceId
+					? 'Dihitung sebagai pembayaran invoice ini; status invoice ikut berubah.'
+					: 'Pilih jika pemasukan ini pembayaran invoice, agar tidak tercatat dua kali.'}
+			>
+				{#snippet children(attrs)}
+					<select
+						{...attrs}
+						value={$form.invoiceId}
+						onchange={(e) => setInvoice(e.currentTarget.value)}
+					>
+						<option value="">Tanpa invoice</option>
+						{#each clientInvoices as i (i.id)}<option value={i.id}>{invoiceLabel(i)}</option>{/each}
+						<!-- keep the current link selectable even when the list does not carry it -->
+						{#if editing?.invoiceId && editing.invoiceId === $form.invoiceId && !clientInvoices.some((i) => i.id === editing?.invoiceId)}
+							<option value={editing.invoiceId}
+								>{editing.invoiceNumber ?? 'Invoice saat ini'}</option
+							>
+						{/if}
+					</select>
+				{/snippet}
+			</Field>
+		{/if}
 
 		<Field label="Keterangan" name="description" errors={$errors.description}>
 			{#snippet children(attrs)}

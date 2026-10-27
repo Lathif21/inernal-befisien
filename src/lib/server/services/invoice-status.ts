@@ -3,11 +3,24 @@
 // edited or deleted, so Keuangan edits keep the invoice right too.
 import { eq, sql } from 'drizzle-orm';
 import { dayKeyWib, rupiah } from '../../format';
-import { paymentStatus } from '../../invoice';
+import { PAYABLE_INVOICE_STATUSES, paymentStatus } from '../../invoice';
+import type { InvoiceStatus } from '../../constants';
 import type { DbOrTx, Tx } from '../db/client';
 import { invoice, transaction } from '../db/schema/index';
 import { logActivity } from './activity';
 import { ServiceError } from './errors';
+
+const NOT_PAYABLE: Record<string, string> = {
+	draft: 'Tandai invoice terkirim dulu sebelum mencatat pembayaran.',
+	paid: 'Invoice ini sudah lunas.',
+	void: 'Invoice ini dibatalkan.'
+};
+
+/** Payments go only to sent / partial / overdue invoices */
+export function assertPayable(status: InvoiceStatus, field?: string) {
+	if (!(PAYABLE_INVOICE_STATUSES as readonly string[]).includes(status))
+		throw new ServiceError(NOT_PAYABLE[status] ?? 'Invoice ini tidak menerima pembayaran.', field);
+}
 
 /** Paid income linked to an invoice, and whether every linked row is income from its client */
 async function paymentsOf(db: DbOrTx, invoiceId: string, clientId: string) {

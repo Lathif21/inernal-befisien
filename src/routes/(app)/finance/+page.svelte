@@ -224,4 +224,5 @@
 	categories={data.categories}
 	clients={data.targets.clients}
 	projects={data.targets.projects}
+	invoices={data.targets.invoices}
 />

@@ -158,6 +158,10 @@ function planFilters(f: StrategyFilters): SQL[] {
 	return where;
 }
 
+// Open steps on the plan's card (the project once won) that are not in the plan: what is left when
+// the plan is dropped. Explicit table names, as in cardOpenSteps.
+const cardOtherOpen = sql<number>`(select count(*)::int from "action" as "o" where "o"."done_at" is null and "o"."plan_id" is distinct from "strategy_plan"."id" and (case when "strategy_plan"."project_id" is not null then "o"."project_id" = "strategy_plan"."project_id" else "o"."deal_id" = "strategy_plan"."deal_id" end))`;
+
 /** Order of steps inside a plan */
 const stepOrder = [asc(action.sort), asc(action.dueAt), asc(action.id)];
 
@@ -191,7 +195,8 @@ export async function listPlans(db: DbOrTx, f: StrategyFilters & { page?: number
 			dealValue: deal.valueEstimate,
 			projectName: project.name,
 			projectStage: project.stage,
-			projectValue: project.contractValue
+			projectValue: project.contractValue,
+			cardOtherOpen
 		})
 		.from(strategyPlan)
 		.innerJoin(client, eq(client.id, strategyPlan.clientId))
@@ -225,6 +230,7 @@ export async function listPlans(db: DbOrTx, f: StrategyFilters & { page?: number
 			...r,
 			totalSteps: all.length,
 			doneSteps: all.filter((s) => s.doneAt).length,
+			openSteps: all.filter((s) => !s.doneAt).length,
 			stepPage,
 			steps: all.slice((stepPage - 1) * STEPS_PER_PAGE, stepPage * STEPS_PER_PAGE)
 		};
@@ -349,12 +355,17 @@ const STATUS_TEXT = {
 	active: 'diaktifkan lagi'
 } as const;
 
-/** Mark achieved / dropped (or reactivate). Steps stay on their card either way. */
+/**
+ * Mark achieved / dropped (or reactivate). Dropping deletes the plan's open steps (done ones stay as
+ * history); when that leaves an active card without an open step, `next` is required (rule 4,
+ * ServiceError field `next`) and lands on the plan's card outside the plan.
+ */
 export async function setPlanStatus(
 	db: DbOrTx,
 	id: string,
 	status: 'achieved' | 'dropped' | 'active',
-	userId: string
+	userId: string,
+	next: StepInput | null = null
 ) {
 	return db.transaction(async (tx) => {
 		const [row] = await tx
@@ -363,12 +374,50 @@ export async function setPlanStatus(
 			.where(eq(strategyPlan.id, id))
 			.returning();
 		if (!row) throw new ServiceError('Rencana tidak ditemukan.');
+
+		let removed = 0;
+		if (status === 'dropped') {
+			removed = (
+				await tx
+					.delete(action)
+					.where(and(eq(action.planId, id), isNull(action.doneAt)))
+					.returning({ id: action.id })
+			).length;
+			const ref = row.projectId ? { projectId: row.projectId } : { dealId: row.dealId! };
+			if (next) await addAction(tx, ref, next, userId);
+			const [card] = row.projectId
+				? await tx
+						.select({ closed: sql<boolean>`${project.stage} = 'done'` })
+						.from(project)
+						.where(eq(project.id, row.projectId))
+				: await tx
+						.select({ closed: sql<boolean>`${deal.stage} in ('won', 'lost')` })
+						.from(deal)
+						.where(eq(deal.id, row.dealId!));
+			const [{ open }] = await tx
+				.select({ open: sql<number>`count(*)::int` })
+				.from(action)
+				.where(
+					and(
+						isNull(action.doneAt),
+						row.projectId ? eq(action.projectId, row.projectId) : eq(action.dealId, row.dealId!)
+					)
+				);
+			if (card && !card.closed && open === 0)
+				throw new ServiceError(
+					'Semua langkah terbuka di kartu ini ada di rencana ini. Tambahkan langkah berikutnya.',
+					'next'
+				);
+		}
+
 		await logActivity(tx, {
 			clientId: row.clientId,
 			dealId: row.dealId,
 			projectId: row.projectId,
 			type: 'system',
-			body: `Rencana ${STATUS_TEXT[status]}: ${row.goal}`,
+			body:
+				`Rencana ${STATUS_TEXT[status]}: ${row.goal}` +
+				(removed ? ` (${removed} langkah terbuka dihapus)` : ''),
 			userId
 		});
 		return row;

@@ -3,15 +3,21 @@
 import { and, eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { createDb, type Tx } from '../db/client';
-import { activity, category, invoice, user } from '../db/schema/index';
+import { activity, category, invoice, transaction, user } from '../db/schema/index';
 import { clientSchema } from '../../schemas/client';
 import { invoiceSchema, paymentSchema } from '../../schemas/invoice';
 import { transactionSchema } from '../../schemas/transaction';
 import { createClient } from './clients';
 import { ServiceError } from './errors';
-import { deleteInvoicePayment, getInvoicePayments, recordPayment } from './invoice-payments';
+import {
+	deleteInvoicePayment,
+	getInvoicePayments,
+	linkableTransactions,
+	recordPayment,
+	unlinkInvoicePayment
+} from './invoice-payments';
 import { createInvoice, listInvoices, markInvoiceSent } from './invoices';
-import { updateTransaction } from './transactions';
+import { createTransaction, updateTransaction } from './transactions';
 
 try {
 	process.loadEnvFile();
@@ -122,6 +128,7 @@ describe.skipIf(!isDevDb)('invoice payments (dev database)', { timeout: 120_000 
 						date: '2099-01-20',
 						amount: 20_000_000,
 						clientId: c.id,
+						invoiceId: inv.id,
 						categoryId: termin.id,
 						...fields
 					}),
@@ -130,7 +137,7 @@ describe.skipIf(!isDevDb)('invoice payments (dev database)', { timeout: 120_000 
 			await edit({ amount: 10_000_000 });
 			expect(await statusOf()).toBe('partial');
 			const other = await createClient(tx, clientSchema.parse({ name: 'ZZ Klien Lain' }), userId);
-			expect(await errorOf(edit({ clientId: other.id }))).toMatch(/harus pemasukan dari klien/);
+			expect(await errorOf(edit({ clientId: other.id }))).toBe(`${inv.number} milik klien lain.`);
 			await edit({ status: 'planned' });
 			expect(await statusOf()).toBe('partial');
 
@@ -182,6 +189,124 @@ describe.skipIf(!isDevDb)('invoice payments (dev database)', { timeout: 120_000 
 			expect(
 				(await tx.select({ s: invoice.status }).from(invoice).where(eq(invoice.id, inv.id)))[0].s
 			).toBe('overdue');
+		});
+	});
+
+	it('links rows already in Keuangan instead of recording them twice', async () => {
+		await inRollback(async (tx, userId) => {
+			const c = await createClient(tx, clientSchema.parse({ name: 'ZZ Hubung Invoice' }), userId);
+			const inv = await createInvoice(
+				tx,
+				invoiceSchema.parse({
+					clientId: c.id,
+					issueDate: '2099-02-01',
+					dueDate: '2099-02-15',
+					ppnRate: 0,
+					pph23Rate: 0,
+					items: [{ description: 'Lisensi', qty: 1, unitPrice: 30_000_000 }]
+				}),
+				userId
+			);
+			const [termin] = await tx
+				.select({ id: category.id })
+				.from(category)
+				.where(and(eq(category.type, 'income'), eq(category.name, 'Termin')));
+			const txn = (fields: Record<string, unknown>) =>
+				transactionSchema.parse({
+					type: 'income',
+					status: 'paid',
+					date: '2099-02-03',
+					amount: 10_000_000,
+					clientId: c.id,
+					categoryId: termin.id,
+					...fields
+				});
+			const statusOf = async () =>
+				(await tx.select({ s: invoice.status }).from(invoice).where(eq(invoice.id, inv.id)))[0].s;
+			const count = async () =>
+				(
+					await tx
+						.select({ id: transaction.id })
+						.from(transaction)
+						.where(eq(transaction.clientId, c.id))
+				).length;
+
+			// a planned DP and a paid termin already in Keuangan
+			const planned = await createTransaction(
+				tx,
+				txn({ status: 'planned', description: 'DP 1/3' }),
+				userId
+			);
+			const paid = await createTransaction(tx, txn({ description: 'Termin 2' }), userId);
+			// a draft invoice takes no payments, from Keuangan either
+			expect(
+				await errorOf(updateTransaction(tx, txn({ id: paid.id, invoiceId: inv.id }), userId))
+			).toMatch(/Tandai invoice terkirim dulu/);
+			await markInvoiceSent(tx, inv.id, userId);
+			expect((await linkableTransactions(tx, inv)).map((t) => t.id).sort()).toEqual(
+				[planned.id, paid.id].sort()
+			);
+
+			// "Dari Keuangan" on the invoice: the planned row becomes the paid payment, no new row
+			const pay = (fields: Record<string, unknown>) =>
+				recordPayment(
+					tx,
+					inv.id,
+					paymentSchema.parse({
+						date: '2099-02-05',
+						amount: 10_000_000,
+						categoryId: termin.id,
+						...fields
+					}),
+					userId
+				);
+			const linked = await pay({ transactionId: planned.id, reference: 'TRF-9' });
+			expect(linked).toMatchObject({ status: 'partial', linked: true });
+			expect(linked.transaction).toMatchObject({
+				id: planned.id,
+				status: 'paid',
+				invoiceId: inv.id,
+				date: '2099-02-05',
+				description: 'DP 1/3',
+				reference: 'TRF-9'
+			});
+			expect(await count()).toBe(2);
+			expect(await errorOf(pay({ transactionId: planned.id }))).toBe(
+				'Transaksi ini sudah terhubung ke invoice lain.'
+			);
+
+			// Keuangan side: the paid termin is linked from its form
+			await updateTransaction(
+				tx,
+				txn({ id: paid.id, invoiceId: inv.id, description: 'Termin 2' }),
+				userId
+			);
+			expect((await getInvoicePayments(tx, inv)).paid).toBe(20_000_000);
+			expect(await linkableTransactions(tx, inv)).toHaveLength(0);
+
+			// a new row from Keuangan completes it; too much or another client's invoice is refused
+			expect(
+				await errorOf(createTransaction(tx, txn({ amount: 10_000_001, invoiceId: inv.id }), userId))
+			).toMatch(/melebihi nilai invoice/);
+			const other = await createClient(tx, clientSchema.parse({ name: 'ZZ Klien Lain 2' }), userId);
+			expect(
+				await errorOf(createTransaction(tx, txn({ clientId: other.id, invoiceId: inv.id }), userId))
+			).toBe(`${inv.number} milik klien lain.`);
+			const last = await createTransaction(tx, txn({ invoiceId: inv.id }), userId);
+			expect(await statusOf()).toBe('paid');
+
+			// unlinking keeps the Keuangan row and re-derives the status, from both sides
+			await unlinkInvoicePayment(tx, inv.id, last.id, userId);
+			expect(await statusOf()).toBe('partial');
+			await updateTransaction(tx, txn({ id: paid.id, description: 'Termin 2' }), userId);
+			expect((await getInvoicePayments(tx, inv)).paid).toBe(10_000_000);
+			expect(await count()).toBe(3);
+
+			const bodies = (
+				await tx.select({ body: activity.body }).from(activity).where(eq(activity.clientId, c.id))
+			).map((l) => l.body);
+			expect(bodies).toContain(`Pemasukan Rp 10.000.000 dihubungkan ke ${inv.number}: DP 1/3`);
+			expect(bodies).toContain(`Pemasukan Rp 10.000.000 dilepas dari ${inv.number}: Termin 2`);
 		});
 	});
 });
