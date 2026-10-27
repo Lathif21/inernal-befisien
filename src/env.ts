@@ -72,7 +72,7 @@ export const variables = defineEnvVars({
 	},
 	INBOX_FROM: {
 		description:
-			'Sender of emails written in the CRM (Email page); default "Befisien Technologies <info@befisien.com>"',
+			'Sender of emails written in the CRM (Email page); default "Befisien <info@befisien.com>"',
 		schema: optional
 	},
 	MAIL_FROM: {

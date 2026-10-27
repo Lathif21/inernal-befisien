@@ -74,7 +74,7 @@ function incoming(fields: Partial<IncomingEmail> & { from: IncomingEmail['from']
 	};
 }
 
-const inbox = { name: 'Befisien Technologies', email: 'info@befisien.com' };
+const inbox = { name: 'Befisien', email: 'info@befisien.com' };
 
 function fakeSender() {
 	const sent: OutgoingMail[] = [];
@@ -85,7 +85,8 @@ function fakeSender() {
 			from: inbox,
 			brand: {
 				logoUrl: null,
-				wordmark: ['BEFISIEN', 'TECHNOLOGIES'] as [string, string],
+				name: 'Befisien',
+				wordmark: 'BEFISIEN',
 				tagline: 'Tagline uji',
 				services: [],
 				links: []

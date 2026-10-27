@@ -140,8 +140,10 @@ export function replyReferences(parent: { messageId: string | null; references: 
 export type EmailBrand = {
 	/** Public URL of the logo mark PNG (an SVG is not shown by Gmail or Outlook) */
 	logoUrl: string | null;
-	/** "BEFISIEN" / "TECHNOLOGIES", stacked next to the mark like the website header */
-	wordmark: [string, string];
+	/** The name in every email (signature line and wordmark): "Befisien", without "Technologies" */
+	name: string;
+	/** "BEFISIEN", next to the mark */
+	wordmark: string;
 	tagline: string;
 	services: string[];
 	links: { label: string; url: string }[];
@@ -300,8 +302,7 @@ export function signatureHtml(s: Signature) {
 			? `<td style="padding:0 10px 0 0;vertical-align:middle"><img src="${e(s.brand.logoUrl)}" width="30" height="40" alt="" style="display:block;border:0;width:30px;height:40px"></td>`
 			: '') +
 		`<td style="vertical-align:middle;white-space:nowrap">` +
-		`<div style="font-size:17px;line-height:18px;font-weight:800;letter-spacing:1px;color:${INK}">${e(s.brand.wordmark[0])}</div>` +
-		`<div style="font-size:9px;line-height:12px;font-weight:bold;letter-spacing:2.5px;color:${ACCENT};padding-top:2px">${e(s.brand.wordmark[1])}</div></td>`;
+		`<div style="font-size:17px;line-height:18px;font-weight:800;letter-spacing:1px;color:${INK}">${e(s.brand.wordmark)}</div></td>`;
 
 	const person =
 		(s.name

@@ -95,14 +95,15 @@ describe('bodies', () => {
 
 	const signature = {
 		name: 'Lathif Dewantoro',
-		company: 'Befisien Technologies',
+		company: 'Befisien',
 		phone: '+62 822-3456-7461',
 		email: 'info@befisien.com',
 		website: 'befisien.com',
 		city: 'Surabaya',
 		brand: {
 			logoUrl: 'https://crm.example.id/email/befisien-mark.png',
-			wordmark: ['BEFISIEN', 'TECHNOLOGIES'] as [string, string],
+			name: 'Befisien',
+			wordmark: 'BEFISIEN',
 			tagline: 'Tingkatkan Efisiensi dan Akselerasi Bisnis Anda',
 			services: ['AI Agent', 'Dashboard & Aplikasi'],
 			links: [{ label: 'LinkedIn', url: 'https://www.linkedin.com/in/befisien' }]
@@ -120,14 +121,15 @@ describe('bodies', () => {
 		// Without a public app URL the logo is left out; the wordmark stays as text
 		const noLogo = signatureHtml({ ...signature, brand: { ...signature.brand, logoUrl: null } });
 		expect(noLogo).not.toContain('<img');
-		expect(noLogo).toContain('TECHNOLOGIES');
+		expect(noLogo).toContain('>BEFISIEN</div>');
+		expect(html).not.toMatch(/technologies/i);
 	});
 
 	it('writes the signature as plain text, skipping what is unknown', () => {
 		expect(signatureText(signature).split('\n')).toEqual([
 			'--',
 			'Lathif Dewantoro',
-			'Befisien Technologies',
+			'Befisien',
 			'+62 822-3456-7461 · info@befisien.com · befisien.com',
 			'Surabaya',
 			'LinkedIn: https://www.linkedin.com/in/befisien'
@@ -141,7 +143,7 @@ describe('bodies', () => {
 				city: null,
 				brand: { ...signature.brand, links: [] }
 			}).split('\n')
-		).toEqual(['--', 'Befisien Technologies', 'info@befisien.com']);
+		).toEqual(['--', 'Befisien', 'info@befisien.com']);
 	});
 
 	it('puts the message, then the signature, then the quoted parent', () => {
@@ -162,8 +164,9 @@ ${signatureText(signature)}
 Pada 27 Okt 2026 10:00 WIB, Ani <ani@x.id> menulis:
 > Bisa <meeting>?`
 		);
-		expect(html.indexOf('Terima kasih.')).toBeLessThan(html.indexOf('Befisien Technologies'));
-		expect(html.indexOf('Befisien Technologies')).toBeLessThan(html.indexOf('<blockquote'));
+		expect(html.indexOf('Terima kasih.')).toBeLessThan(html.indexOf('BEFISIEN'));
+		expect(html.indexOf('BEFISIEN')).toBeLessThan(html.indexOf('<blockquote'));
+		expect(html + text).not.toMatch(/technologies/i);
 		expect(html).toContain('href="mailto:info@befisien.com"');
 		expect(html).toContain('href="https://befisien.com"');
 		expect(html).toContain('Bisa &lt;meeting&gt;?');

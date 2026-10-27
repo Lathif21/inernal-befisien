@@ -278,7 +278,7 @@ function checkFiles(body: string, files: SendFile[]) {
 }
 
 export type SendDeps = {
-	/** "Befisien Technologies <info@befisien.com>" */
+	/** "Befisien <info@befisien.com>" */
 	from: Address;
 	/** Logo, tagline, services and profiles in the signature */
 	brand: EmailBrand;
@@ -297,8 +297,9 @@ async function lastMessage(db: DbOrTx, threadId: string) {
 }
 
 /**
- * The signature under every email from the CRM: the writer, then the company from Pengaturan →
- * Profil perusahaan. Example values (profile not saved yet) are left out, never sent to a client.
+ * The signature under every email from the CRM: the writer, the brand name ("Befisien"), then phone
+ * and city from Pengaturan → Profil perusahaan. Example values (profile not saved yet) are left
+ * out, never sent to a client.
  */
 export async function emailSignature(
 	db: DbOrTx,
@@ -309,11 +310,11 @@ export async function emailSignature(
 		db.select({ name: user.name }).from(user).where(eq(user.id, userId)),
 		getCompanyProfile(db)
 	]);
-	const companyName = company.isExample ? (from.name ?? 'Befisien') : company.name;
+	// The brand name, not the legal name in the profile (which keeps "Technologies" for invoices)
 	const name = u?.name?.trim() || null;
 	return {
-		name: name && name.toLowerCase() !== companyName.toLowerCase() ? name : null,
-		company: companyName,
+		name: name && name.toLowerCase() !== brand.name.toLowerCase() ? name : null,
+		company: brand.name,
 		phone: !company.isExample && company.phone ? phoneDisplay(company.phone) : null,
 		email: from.email,
 		website: from.email.split('@')[1] ?? null,

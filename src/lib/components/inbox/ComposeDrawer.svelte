@@ -261,7 +261,7 @@
 				<!-- The same HTML the email carries, in the sandboxed email frame -->
 				<EmailBody html={signature} text={null} />
 				<p class="text-small text-ink-3">
-					Nama perusahaan, telepon dan kota diambil dari
+					Telepon dan kota diambil dari
 					<a href={resolve('settings/company')} class="font-bold text-accent-ink hover:underline"
 						>Pengaturan → Profil perusahaan</a
 					>.

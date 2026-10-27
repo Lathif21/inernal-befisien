@@ -4,7 +4,7 @@ import { formatAddress, parseAddress, type EmailBrand } from '#lib/email.ts';
 import { sendEmail } from '#lib/server/notify/email.ts';
 import type { SendDeps } from '#lib/server/services/email.ts';
 
-const DEFAULT_FROM = 'Befisien Technologies <info@befisien.com>';
+const DEFAULT_FROM = 'Befisien <info@befisien.com>';
 
 export const inboxFrom = parseAddress(INBOX_FROM ?? DEFAULT_FROM) ?? parseAddress(DEFAULT_FROM)!;
 
@@ -18,7 +18,8 @@ const appUrl = (BETTER_AUTH_URL ?? '').replace(/\/$/, '');
  */
 export const emailBrand: EmailBrand = {
 	logoUrl: appUrl.startsWith('https://') ? `${appUrl}/email/befisien-mark.png` : null,
-	wordmark: ['BEFISIEN', 'TECHNOLOGIES'],
+	name: 'Befisien',
+	wordmark: 'BEFISIEN',
 	tagline: 'Tingkatkan Efisiensi dan Akselerasi Bisnis Anda',
 	services: ['AI Agent', 'Otomasi Workflow', 'Integrasi Sistem', 'Dashboard & Aplikasi'],
 	links: [
