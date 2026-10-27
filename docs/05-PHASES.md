@@ -320,6 +320,17 @@ Goal: the team runs all client follow-up and money tracking in the app instead o
 - [ ] **P3-06** Weekly summary (Monday 08:00 WIB, Telegram + email)
 - [ ] **P3-07** WhatsApp channel (Fonnte or WA Cloud API) once Telegram is proven
 
+### [ ] P3-08 Email inbox in the CRM (client request, 27 Okt 2026)
+
+- info@befisien.com moves from Zoho Mail (Forever Free: no IMAP, no forwarding on a custom domain) to **Resend Inbound**: befisien.com's MX points to Resend, Resend posts `email.received` to `POST /api/email` (Svix signature, `RESEND_WEBHOOK_SECRET`), the app fetches the full email and stores it. Zoho no longer receives new mail; its old mail stays readable there.
+- Sender matched to a contact (`contact.email`, case-insensitive) → the email is on the client's timeline (activity `email`), so Ringkasan konteks and Saran AI see it. Unmatched mail can be linked to a client by hand.
+- **Kotak Masuk** page (`/inbox`): threads, filters (Semua / Belum dibaca / Klien / Tanpa klien / Terkirim), unread badge in the sidebar. A thread shows each message (HTML in a sandboxed iframe, remote images off until "Tampilkan gambar"), attachments (fresh Resend download link), "Hubungkan ke klien", "Tandai belum dibaca".
+- **Balas / Tulis email** from the CRM through Resend from info@befisien.com, threaded (`In-Reply-To`, `References`, `Re:`), stored as an outgoing message and logged on the client's timeline.
+- **Telegram alert** for each new email (not bulk / newsletters) to every linked user: sender, subject, preview, client, link to the thread.
+- Not in scope: PRD non-goal "Email inbox inside the app" is lifted for email only; attachments are not copied (Resend keeps them; P3-01 later); sending attachments.
+- **Done when:** a test email to the Resend address shows up in Kotak Masuk within a minute, matched to its client, with a Telegram alert; a reply from the CRM arrives threaded in the sender's mail app and appears in the thread and the client timeline; a replayed webhook stores nothing twice; a bad signature is refused; check, lint and tests pass.
+- _Status (27 Okt 2026): built, not deployed. Migration 0013 `email_message` + `contact_email_lower_idx` (applied on dev). Tested locally: unsigned / wrongly signed webhooks get 401; DB tests cover matching, a replayed webhook, threading by headers and by `Re:` subject, a reply sent once with the same key, filters, unread, and linking with "simpan sebagai kontak"; in Edge the email script and remote image were blocked (image after "Tampilkan gambar"), the badge cleared on open, and a real reply went out through Resend to delivered@resend.dev. Open, in this order: (1) Resend: check Receiving is enabled on the account and make a full-access API key; (2) production: migration 0013, Vercel env `RESEND_API_KEY` (full access), `RESEND_WEBHOOK_SECRET`, `INBOX_FROM`, deploy; (3) Resend → Webhooks → `https://befisien-crm.vercel.app/api/email`, event `email.received`, copy the signing secret; (4) mail the account's `…@<id>.resend.app` address from Gmail and reply from the CRM; (5) at Rumahweb, add Resend's MX for befisien.com with the lowest priority and remove the three Zoho MX records; check Zoho one last time after 48 hours for mail that arrived during the switch._
+
 ## Phase 4 — Later
 
 - [ ] **P4-01** Restricted roles `sales` / `finance` with permission checks per route and action

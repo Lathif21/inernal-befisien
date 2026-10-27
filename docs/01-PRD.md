@@ -24,7 +24,7 @@ Client information, follow-ups and money are spread across plain notes and chat.
 ## 3. Non-goals (for now)
 
 - Full accounting (general ledger, balance sheet, tax filing)
-- Email or WhatsApp inbox inside the app
+- WhatsApp inbox inside the app (email moved in with P3-08, client request 27 Okt 2026: info@befisien.com is read and answered in Kotak Masuk)
 - Client-facing portal
 - Mobile app (the web app is responsive)
 - AI acting on its own. The AI only suggests; a person always confirms.

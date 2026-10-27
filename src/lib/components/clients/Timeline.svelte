@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Component } from 'svelte';
+	import { resolve } from '$app/paths';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import Info from '@lucide/svelte/icons/info';
@@ -21,6 +22,8 @@
 		userName: string | null;
 		dealTitle?: string | null;
 		projectName?: string | null;
+		/** An email entry carries its thread (P3-08) */
+		meta?: unknown;
 	};
 
 	type Props = {
@@ -52,6 +55,12 @@
 		ai_accepted: 'bg-ai-bg text-ai',
 		system: 'bg-tint-2 text-ink-3'
 	};
+
+	/** The Kotak Masuk thread of an email entry */
+	function threadOf(e: Entry) {
+		const id = (e.meta as { threadId?: unknown } | null | undefined)?.threadId;
+		return e.type === 'email' && typeof id === 'string' ? id : null;
+	}
 
 	const thisYear = dayKeyWib().slice(0, 4);
 	/** "23 Okt 10:00" this year, "23 Okt 2025 · 10:00" otherwise (WIB) */
@@ -91,6 +100,13 @@
 					</p>
 					{#if e.body}
 						<p class="mt-1 text-body break-words whitespace-pre-line text-ink">{e.body}</p>
+					{/if}
+					{#if threadOf(e)}
+						<a
+							href={resolve('/(app)/inbox/[id]', { id: threadOf(e)! })}
+							class="mt-1 inline-block text-small font-bold text-accent-ink hover:underline"
+							>Buka email</a
+						>
 					{/if}
 					{#if e.dealTitle || e.projectName}
 						<p class="mt-1 text-small text-ink-2">

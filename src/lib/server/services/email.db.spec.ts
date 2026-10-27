@@ -1,0 +1,270 @@
+// Database tests for the email inbox (P3-08). Neon `dev` branch (or localhost) only, inside a
+// transaction that is always rolled back.
+import { eq } from 'drizzle-orm';
+import { describe, expect, it } from 'vitest';
+import { createDb, type Tx } from '../db/client';
+import { activity, contact, emailMessage, user } from '../db/schema/index';
+import { clientSchema } from '../../schemas/client';
+import { contactSchema } from '../../schemas/contact';
+import type { OutgoingMail } from '../notify/email';
+import { createClient } from './clients';
+import { saveContact } from './contacts';
+import {
+	getThread,
+	linkThread,
+	listThreads,
+	markThread,
+	receiveEmail,
+	replyDefaults,
+	sendEmailMessage,
+	unreadThreadCount,
+	type IncomingEmail
+} from './email';
+
+try {
+	process.loadEnvFile();
+} catch {
+	// no .env
+}
+const url = process.env.DATABASE_URL;
+const isDevDb =
+	!!url &&
+	(process.env.NEON_BRANCH === 'dev' || ['localhost', '127.0.0.1'].includes(new URL(url).hostname));
+
+class Rollback extends Error {}
+
+async function inRollback(fn: (tx: Tx, userId: string) => Promise<void>) {
+	const db = createDb(url!);
+	try {
+		await db.transaction(async (tx) => {
+			const [u] = await tx.select({ id: user.id }).from(user).limit(1);
+			if (!u) throw new Error('needs at least one user (npm run user:create)');
+			await fn(tx, u.id);
+			throw new Rollback();
+		});
+	} catch (e) {
+		if (!(e instanceof Rollback)) throw e;
+	} finally {
+		await db.$client.end();
+	}
+}
+
+const run = Math.random().toString(36).slice(2, 8);
+const addr = (local: string) => `${local}.${run}@zz-test.id`;
+
+let seq = 0;
+function incoming(fields: Partial<IncomingEmail> & { from: IncomingEmail['from'] }): IncomingEmail {
+	seq += 1;
+	return {
+		resendId: `zz-${run}-${seq}`,
+		messageId: `<m${seq}.${run}@mail.zz-test.id>`,
+		inReplyTo: null,
+		references: [],
+		to: ['info@befisien.com'],
+		cc: [],
+		replyTo: null,
+		subject: 'Penawaran integrasi ERP',
+		text: 'Halo, kami tertarik dengan integrasi ERP.',
+		html: null,
+		attachments: [],
+		bulk: false,
+		sentAt: new Date(Date.now() - (100 - seq) * 60_000),
+		...fields
+	};
+}
+
+const inbox = { name: 'Befisien Technologies', email: 'info@befisien.com' };
+
+function fakeSender() {
+	const sent: OutgoingMail[] = [];
+	const ids = new Map<string, string>();
+	return {
+		sent,
+		deps: {
+			from: inbox,
+			send: async (mail: OutgoingMail) => {
+				// Same idempotency key → same Resend id, like the real API
+				const key = mail.idempotencyKey ?? String(sent.length);
+				if (!ids.has(key)) {
+					sent.push(mail);
+					ids.set(key, `zz-out-${run}-${ids.size + 1}`);
+				}
+				return ids.get(key)!;
+			}
+		}
+	};
+}
+
+async function clientWithContact(tx: Tx, userId: string, email: string) {
+	const c = await createClient(tx, clientSchema.parse({ name: `ZZ Email ${run}` }), userId);
+	await saveContact(tx, c.id, contactSchema.parse({ name: 'Budi Santoso', email }), userId);
+	return c;
+}
+
+const emailActivities = (tx: Tx, clientId: string) =>
+	tx
+		.select({ body: activity.body, meta: activity.meta })
+		.from(activity)
+		.where(eq(activity.clientId, clientId))
+		.then((rows) => rows.filter((r) => (r.meta as { emailId?: string } | null)?.emailId));
+
+describe.skipIf(!isDevDb)('email inbox service (dev database)', { timeout: 30_000 }, () => {
+	it('matches a known sender to the client, logs it once and ignores a replayed webhook', async () => {
+		await inRollback(async (tx, userId) => {
+			const budi = addr('budi');
+			const c = await clientWithContact(tx, userId, budi);
+			const mail = incoming({ from: { name: 'Budi', email: budi } });
+
+			const first = await receiveEmail(tx, mail);
+			expect(first.created).toBe(true);
+			expect(first.created && first.clientName).toBe(c.name);
+			const again = await receiveEmail(tx, mail);
+			expect(again.created).toBe(false);
+			// The same message delivered again under a new Resend id is still one email
+			const redelivered = await receiveEmail(tx, { ...mail, resendId: `${mail.resendId}-b` });
+			expect(redelivered.created).toBe(false);
+
+			const logged = await emailActivities(tx, c.id);
+			expect(logged).toHaveLength(1);
+			expect(logged[0].body).toContain('Email masuk: Penawaran integrasi ERP');
+		});
+	});
+
+	it('threads a reply by In-Reply-To and gives an unknown sender in it the thread client', async () => {
+		await inRollback(async (tx, userId) => {
+			const budi = addr('budi');
+			const c = await clientWithContact(tx, userId, budi);
+			const first = incoming({ from: { name: 'Budi', email: budi } });
+			const a = await receiveEmail(tx, first);
+			const b = await receiveEmail(
+				tx,
+				incoming({
+					from: { name: 'Sari', email: addr('sari') },
+					subject: 'Re: Penawaran integrasi ERP',
+					inReplyTo: first.messageId,
+					references: [first.messageId!]
+				})
+			);
+			const unrelated = await receiveEmail(
+				tx,
+				incoming({ from: { name: null, email: addr('x') } })
+			);
+
+			const thread = await getThread(tx, a.id!);
+			expect(thread?.messages.map((m) => m.fromName)).toEqual(['Budi', 'Sari']);
+			expect(thread?.client?.id).toBe(c.id);
+			expect(b.created && b.message.threadId).toBe(a.id);
+			expect(unrelated.created && unrelated.message.threadId).toBe(unrelated.id);
+			expect(unrelated.created && unrelated.clientName).toBeNull();
+		});
+	});
+
+	it('sends a threaded reply once, stores it and finds the answer to it by subject', async () => {
+		await inRollback(async (tx, userId) => {
+			const budi = addr('budi');
+			const c = await clientWithContact(tx, userId, budi);
+			const first = incoming({ from: { name: 'Budi', email: budi } });
+			const a = await receiveEmail(tx, first);
+			const { sent, deps } = fakeSender();
+
+			const thread = await getThread(tx, a.id!);
+			const defaults = replyDefaults(thread!.messages, inbox.email);
+			expect(defaults).toEqual({
+				to: `Budi <${budi}>`,
+				cc: '',
+				subject: 'Re: Penawaran integrasi ERP'
+			});
+
+			const input = {
+				threadId: a.id!,
+				to: [{ name: 'Budi', email: budi }],
+				cc: [],
+				subject: '',
+				body: 'Terima kasih, kami kirim proposal besok.',
+				key: `k-${run}`
+			};
+			const reply = await sendEmailMessage(tx, input, userId, deps);
+			const twice = await sendEmailMessage(tx, input, userId, deps);
+			expect(twice.id).toBe(reply.id);
+			expect(sent).toHaveLength(1);
+			expect(sent[0].subject).toBe('Re: Penawaran integrasi ERP');
+			expect(sent[0].headers?.['In-Reply-To']).toBe(first.messageId);
+			expect(sent[0].headers?.References).toBe(first.messageId);
+			expect(sent[0].text).toContain('> Halo, kami tertarik');
+			expect(reply.threadId).toBe(a.id);
+
+			// A new email from the CRM: the client's reply points at a Message-ID Resend replaced
+			const fresh = await sendEmailMessage(
+				tx,
+				{ ...input, threadId: undefined, subject: 'Jadwal demo', key: `k2-${run}` },
+				userId,
+				deps
+			);
+			expect(fresh.threadId).toBe(fresh.id);
+			const answer = await receiveEmail(
+				tx,
+				incoming({
+					from: { name: 'Budi', email: budi },
+					subject: 'RE: Jadwal demo',
+					inReplyTo: '<unknown@resend>'
+				})
+			);
+			expect(answer.created && answer.message.threadId).toBe(fresh.id);
+
+			const logged = await emailActivities(tx, c.id);
+			expect(logged.map((l) => l.body?.split('\n')[0])).toEqual(
+				expect.arrayContaining([
+					'Email masuk: Penawaran integrasi ERP',
+					'Email terkirim: Re: Penawaran integrasi ERP',
+					'Email terkirim: Jadwal demo',
+					'Email masuk: RE: Jadwal demo'
+				])
+			);
+		});
+	});
+
+	it('filters threads, counts unread and marks a thread read or unread', async () => {
+		await inRollback(async (tx, userId) => {
+			const budi = addr('budi');
+			await clientWithContact(tx, userId, budi);
+			const before = await unreadThreadCount(tx);
+			const known = await receiveEmail(tx, incoming({ from: { name: 'Budi', email: budi } }));
+			const stranger = await receiveEmail(
+				tx,
+				incoming({ from: { name: null, email: addr('baru') }, subject: `Tanya harga q${run}q` })
+			);
+			expect(await unreadThreadCount(tx)).toBe(before + 2);
+
+			const search = await listThreads(tx, { q: `q${run}q` });
+			expect(search.rows.map((r) => r.threadId)).toEqual([stranger.id]);
+			const none = await listThreads(tx, { filter: 'none', q: 'zz-test.id' });
+			expect(none.rows.map((r) => r.threadId)).toContain(stranger.id);
+			expect(none.rows.map((r) => r.threadId)).not.toContain(known.id);
+
+			await markThread(tx, known.id!, true);
+			expect(await unreadThreadCount(tx)).toBe(before + 1);
+			await markThread(tx, known.id!, false);
+			expect(await unreadThreadCount(tx)).toBe(before + 2);
+		});
+	});
+
+	it('links an unmatched thread to a client and saves the sender as a contact', async () => {
+		await inRollback(async (tx, userId) => {
+			const c = await createClient(tx, clientSchema.parse({ name: `ZZ Link ${run}` }), userId);
+			const baru = addr('baru');
+			const m = await receiveEmail(tx, incoming({ from: { name: 'Rina Wijaya', email: baru } }));
+
+			await linkThread(tx, { threadId: m.id!, clientId: c.id, addContact: true }, userId);
+			const [row] = await tx.select().from(emailMessage).where(eq(emailMessage.id, m.id!));
+			expect(row.clientId).toBe(c.id);
+			expect(row.contactId).not.toBeNull();
+			const [saved] = await tx.select().from(contact).where(eq(contact.id, row.contactId!));
+			expect(saved).toMatchObject({ name: 'Rina Wijaya', email: baru, clientId: c.id });
+			expect(await emailActivities(tx, c.id)).toHaveLength(1);
+
+			// The next email from Rina is matched without help
+			const next = await receiveEmail(tx, incoming({ from: { name: 'Rina', email: baru } }));
+			expect(next.created && next.clientName).toBe(c.name);
+		});
+	});
+});

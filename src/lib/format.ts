@@ -23,6 +23,8 @@ const DATE_PATTERNS = {
 	date: 'd MMM yyyy',
 	/** 22 Okt 10:00 */
 	datetime: 'd MMM HH:mm',
+	/** 22 Okt (Kotak Masuk list, this year) */
+	day: 'd MMM',
 	/** Kamis, 22 Okt 2026 (greetings) */
 	long: 'EEEE, d MMM yyyy',
 	/** 22 Oktober 2026 (invoice PDF) */

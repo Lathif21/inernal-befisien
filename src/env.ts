@@ -30,7 +30,8 @@ export const variables = defineEnvVars({
 		schema: optional
 	},
 	RESEND_API_KEY: {
-		description: 'Resend key for the digest email (send-only is enough)',
+		description:
+			'Resend key for app email; full access, because Kotak Masuk reads received email (P3-08)',
 		schema: optional
 	},
 	SUMOPOD_API_KEY: {
@@ -62,6 +63,16 @@ export const variables = defineEnvVars({
 	TRIGGER_SECRET_KEY: {
 		description:
 			'Trigger.dev secret key (tr_dev_… locally, tr_prod_… on the server); the Telegram webhook queues telegram-inbound with it',
+		schema: optional
+	},
+	RESEND_WEBHOOK_SECRET: {
+		description:
+			'Signing secret (whsec_…) of the Resend webhook for email.received; /api/email checks it',
+		schema: optional
+	},
+	INBOX_FROM: {
+		description:
+			'Sender of emails written in Kotak Masuk; default "Befisien Technologies <info@befisien.com>"',
 		schema: optional
 	},
 	MAIL_FROM: {

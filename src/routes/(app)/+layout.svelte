@@ -36,7 +36,12 @@
 
 <!-- Each page renders its own <Topbar> and a `page-body` main area -->
 <div class="min-h-dvh md:flex" data-sidebar={sidebar}>
-	<Sidebar strategyCount={data.strategyCount} mode={sidebar} onmodechange={(m) => (sidebar = m)} />
+	<Sidebar
+		strategyCount={data.strategyCount}
+		inboxCount={data.inboxCount}
+		mode={sidebar}
+		onmodechange={(m) => (sidebar = m)}
+	/>
 	<div
 		class={['flex min-w-0 flex-1 flex-col transition-opacity', slow && otherPage && 'opacity-60']}
 		aria-busy={slow}

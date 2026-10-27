@@ -1,0 +1,84 @@
+import { error, fail, redirect } from '@sveltejs/kit';
+import { z } from 'zod';
+import { emailLinkSchema } from '#lib/schemas/email.ts';
+import { db } from '#lib/server/db/index.ts';
+import { sendEmailAction } from '#lib/server/email-actions.ts';
+import { inboxFrom, resendKey } from '#lib/server/email-config.ts';
+import { runSimpleAction } from '#lib/server/forms.ts';
+import { requireUser } from '#lib/server/guards.ts';
+import { getReceivedAttachment } from '#lib/server/notify/resend-inbound.ts';
+import { listDealClients } from '#lib/server/services/deals.ts';
+import {
+	attachmentSource,
+	getThread,
+	linkThread,
+	markThread,
+	replyDefaults
+} from '#lib/server/services/email.ts';
+import type { Actions, PageServerLoad } from './$types';
+
+function threadIdOr404(raw: string) {
+	const id = z.uuid().safeParse(raw);
+	if (!id.success) error(404, 'Email tidak ditemukan.');
+	return id.data;
+}
+
+export const load: PageServerLoad = async ({ params, locals }) => {
+	requireUser(locals);
+	const threadId = threadIdOr404(params.id);
+	const thread = await getThread(db, threadId);
+	if (!thread) error(404, 'Email tidak ditemukan.');
+	// Opening a thread reads it; the page refreshes the sidebar badge afterwards
+	const wasUnread = thread.messages.some((m) => m.direction === 'in' && !m.readAt);
+	if (wasUnread) await markThread(db, threadId, true);
+	return {
+		thread,
+		wasUnread,
+		reply: replyDefaults(thread.messages, inboxFrom.email),
+		clients: thread.client ? [] : await listDealClients(db)
+	};
+};
+
+export const actions: Actions = {
+	send: sendEmailAction,
+
+	link: async ({ request, params, locals }) => {
+		const user = requireUser(locals);
+		const threadId = threadIdOr404(params.id);
+		const parsed = emailLinkSchema.safeParse(Object.fromEntries(await request.formData()));
+		if (!parsed.success) return fail(400, { error: parsed.error.issues[0].message });
+		return runSimpleAction(
+			() => linkThread(db, { threadId, ...parsed.data }, user.id),
+			parsed.data.addContact
+				? 'Email dihubungkan ke klien dan pengirim disimpan sebagai kontak.'
+				: 'Email dihubungkan ke klien.'
+		);
+	},
+
+	unread: async ({ params, locals }) => {
+		requireUser(locals);
+		const threadId = threadIdOr404(params.id);
+		return runSimpleAction(() => markThread(db, threadId, false), 'Ditandai belum dibaca.');
+	},
+
+	/** Plain form (new tab): a fresh Resend link, valid for an hour */
+	attachment: async ({ request, params, locals }) => {
+		requireUser(locals);
+		threadIdOr404(params.id);
+		const form = await request.formData();
+		const emailId = z.uuid().safeParse(form.get('emailId'));
+		const attachmentId = z.string().min(1).max(100).safeParse(form.get('attachmentId'));
+		if (!emailId.success || !attachmentId.success) error(404, 'Lampiran tidak ditemukan.');
+		const source = await attachmentSource(db, emailId.data, attachmentId.data);
+		if (!source) error(404, 'Lampiran tidak ditemukan.');
+		let url: string;
+		try {
+			url = (await getReceivedAttachment(resendKey, source.resendId, attachmentId.data))
+				.download_url;
+		} catch (e) {
+			console.error('[email] attachment link failed:', String(e));
+			error(502, 'Lampiran tidak bisa diambil dari Resend. Coba lagi sebentar lagi.');
+		}
+		redirect(303, url);
+	}
+};

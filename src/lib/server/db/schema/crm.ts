@@ -87,6 +87,8 @@ export const contact = pgTable(
 	},
 	(t) => [
 		index('contact_client_idx').on(t.clientId),
+		// Incoming email is matched to a contact by sender address (P3-08)
+		index('contact_email_lower_idx').on(sql`lower(${t.email})`),
 		// At most one primary contact per client
 		uniqueIndex('contact_one_primary_idx')
 			.on(t.clientId)

@@ -248,6 +248,14 @@ invoice_status = 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'void'; // 
 
 Check: `amount > 0`.
 
+### Phase 3: `email_message` (Kotak Masuk, P3-08)
+
+`email_message`: `id, direction ('in' | 'out'), resend_id (unique), message_id, in_reply_to, references text[], thread_id, from_email (lower case), from_name, to text[], cc text[], reply_to, subject, text, html, snippet, attachments jsonb [{ id, filename, contentType, size, inline }], bulk, client_id?, contact_id?, user_id? (sender of outgoing), read_at, sent_at`
+
+- A thread is `thread_id` = the first message's id. A new message joins the thread of any message whose `message_id` is in its `In-Reply-To` / `References`; failing that, a `Re:` reply from someone we wrote to joins our email with the same subject (Resend replaces our Message-ID).
+- The client comes from the sender's contact (`lower(contact.email)`), else from the thread. Each email of a client is also an `activity` of type `email` with `meta = { emailId, threadId, direction }`.
+- Attachments stay at Resend; the app fetches a fresh one-hour download link when someone clicks.
+
 ### Phase 2: `invoice`, `invoice_item`
 
 `invoice`: `id, number (unique), client_id, project_id?, issue_date, due_date, status, subtotal, ppn_rate (default 11), ppn_amount, pph23_rate (default 2), pph23_amount, total, notes, sent_at`

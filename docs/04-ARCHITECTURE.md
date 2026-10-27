@@ -203,6 +203,17 @@ That is 7 schedules at most, within the free plan's 10.
 
 Development: `npx trigger.dev@latest dev`. Deploy: `npx trigger.dev@latest deploy`, which syncs the declarative cron schedules.
 
+### Kotak Masuk (P3-08)
+
+befisien.com's MX points to **Resend Inbound** (Zoho Mail Free has no IMAP and no forwarding for a custom domain). For each received email Resend posts `email.received` to `POST /api/email`:
+
+1. Check the Svix signature (`svix-id`, `svix-timestamp`, `svix-signature`; HMAC-SHA256 with `RESEND_WEBHOOK_SECRET`, 5 minutes tolerance). Wrong = 401.
+2. Fetch the full email (`GET /emails/receiving/{id}`, inline images as data URIs; needs a full-access `RESEND_API_KEY`).
+3. `receiveEmail`: store once (Resend id, then Message-ID), thread it, match the client, log the activity, all in one transaction.
+4. Telegram alert to every linked user, unless it is bulk mail. Errors here are logged, never retried.
+
+Any other error answers 500 and Resend retries; a repeat stores nothing. Replies go out through the Resend send API from `INBOX_FROM`, with `In-Reply-To` / `References` and an `Idempotency-Key` from the form. Email HTML is shown only in a sandboxed iframe (no scripts, its own CSP, remote images off until "Tampilkan gambar").
+
 ## Environment variables
 
 ```
@@ -213,6 +224,8 @@ BETTER_AUTH_URL=https://crm.befisien.com
 ORIGIN=https://crm.befisien.com          # adapter-node
 RESEND_API_KEY=…
 MAIL_FROM="Befisien CRM <info@befisien.com>"
+RESEND_WEBHOOK_SECRET=whsec_…              # Kotak Masuk: Resend webhook email.received → /api/email
+INBOX_FROM="Befisien Technologies <info@befisien.com>"   # sender of emails written in the CRM
 TELEGRAM_BOT_TOKEN=…                     # from @BotFather
 TELEGRAM_WEBHOOK_SECRET=…
 TRIGGER_SECRET_KEY=…                     # the webhook queues "telegram-inbound"

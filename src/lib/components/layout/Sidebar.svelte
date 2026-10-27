@@ -16,11 +16,13 @@
 	type Props = {
 		/** Late + due-today steps for the current user (Strategi badge); filled in P1-07c */
 		strategyCount?: number;
+		/** Threads with an unread incoming email (P3-08) */
+		inboxCount?: number;
 		mode: SidebarMode;
 		onmodechange: (mode: SidebarMode) => void;
 	};
 
-	let { strategyCount = 0, mode, onmodechange }: Props = $props();
+	let { strategyCount = 0, inboxCount = 0, mode, onmodechange }: Props = $props();
 
 	const user = $derived(page.data.user as { name: string; email: string } | undefined);
 	const main = navItems.filter((i) => !i.bottom);
@@ -46,7 +48,7 @@
 <!-- `rail:` classes only match in the sidebar column; the phone drawer is portalled outside it -->
 {#snippet item(nav: NavItem)}
 	{@const active = isActive(nav, page.url.pathname)}
-	{@const count = nav.badge === 'strategy' ? strategyCount : 0}
+	{@const count = nav.badge === 'strategy' ? strategyCount : nav.badge === 'inbox' ? inboxCount : 0}
 	<a
 		href={resolve(nav.href)}
 		aria-current={active ? 'page' : undefined}
@@ -71,7 +73,9 @@
 					'bf-badge rail:absolute rail:top-1 rail:right-1',
 					active && 'bg-surface! text-danger!'
 				]}
-				aria-label="{count} langkah terlambat atau jatuh tempo hari ini">{count}</span
+				aria-label={nav.badge === 'inbox'
+					? `${count} percakapan email belum dibaca`
+					: `${count} langkah terlambat atau jatuh tempo hari ini`}>{count}</span
 			>
 		{/if}
 	</a>
